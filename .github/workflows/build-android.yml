@@ -1,0 +1,165 @@
+name: Build Vertext Android APK
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ──────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Node.js ──────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Setup Java (required for Android build) ────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 4. Setup Android SDK ──────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 5. Install Expo CLI & EAS CLI ─────────────────────
+      - name: Install Expo and EAS CLI
+        run: |
+          npm install -g expo-cli@latest
+          npm install -g eas-cli@latest
+
+      # ── 6. Install project dependencies ──────────────────
+      - name: Install dependencies
+        run: npm install
+
+      # ── 7. Setup Expo token for EAS ──────────────────────
+      - name: Setup Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is set, using EAS build"
+          else
+            echo "No EXPO_TOKEN, will use local Gradle build"
+          fi
+
+      # ── 8. Prebuild - generate Android native project ─────
+      - name: Expo Prebuild (generate Android folder)
+        run: npx expo prebuild --platform android --clean
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      # ── 9. Grant Gradle execute permission ───────────────
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      # ── 10. Cache Gradle dependencies ────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # ── 11. Build release APK ─────────────────────────────
+      - name: Build Android Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      # ── 12. Sign the APK (if keystore secrets provided) ───
+      - name: Sign APK
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > vertext-release.keystore
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks vertext-release.keystore \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$STORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out android/app/build/outputs/apk/release/vertext-signed.apk \
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+      # ── 13. Rename APK ────────────────────────────────────
+      - name: Rename APK output
+        run: |
+          mkdir -p dist
+          # Try signed first, then unsigned
+          if [ -f "android/app/build/outputs/apk/release/vertext-signed.apk" ]; then
+            cp android/app/build/outputs/apk/release/vertext-signed.apk dist/Vertext-v${{ github.run_number }}.apk
+          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/Vertext-v${{ github.run_number }}.apk
+          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk dist/Vertext-v${{ github.run_number }}.apk
+          fi
+          echo "APK built:"
+          ls -lh dist/
+
+      # ── 14. Upload APK as artifact ────────────────────────
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vertext-Android-APK-v${{ github.run_number }}
+          path: dist/Vertext-v${{ github.run_number }}.apk
+          retention-days: 30
+
+      # ── 15. Create GitHub Release (on push to main) ───────
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Vertext v1.0.${{ github.run_number }}
+          body: |
+            ## 🎬 Vertext Android App
+
+            ### What's in this release
+            - Auto-playing video feed (5 videos preloaded)
+            - Double-tap to like
+            - Comments, Save, Share
+            - Upload videos
+            - Earnings dashboard (40% ad revenue)
+            - Profile with monetization card
+            - JWT Authentication
+
+            ### Install
+            Download the APK below and install on your Android device.
+            Enable "Install from unknown sources" in Settings if needed.
+
+          files: dist/Vertext-v${{ github.run_number }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 16. Print success summary ─────────────────────────
+      - name: Build summary
+        run: |
+          echo "✅ Vertext APK built successfully!"
+          echo "📦 Version: v1.0.${{ github.run_number }}"
+          echo "📥 Download from the Artifacts section of this workflow run"
+          echo "🚀 Or from the Releases page if pushed to main"
