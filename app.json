@@ -37,9 +37,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "apiUrl": "http://localhost:8000/api"
-    },
     "plugins": [
       "expo-av",
       "expo-image-picker"
