@@ -74,14 +74,11 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Vertext v1.0.${{ github.run_number }}
-          body: |
-            ## 🎬 Vertext Android APK
-            Download and install on your Android device.
+          body: "🎬 Vertext Android APK - Download and install on your phone"
           files: dist/Vertext-v${{ github.run_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
