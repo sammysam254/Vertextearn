@@ -15,12 +15,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.vertext.mobile",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Vertext needs camera access to record videos",
-        "NSMicrophoneUsageDescription": "Vertext needs microphone access to record videos",
-        "NSPhotoLibraryUsageDescription": "Vertext needs photo library access to upload videos"
-      }
+      "bundleIdentifier": "app.vertext.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,19 +32,17 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE",
         "VIBRATE"
-      ],
-      "softwareKeyboardLayoutMode": "pan"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": "http://localhost:8000/api",
-      "eas": {
-        "projectId": "vertext-app-id"
-      }
+      "apiUrl": "http://localhost:8000/api"
     },
     "plugins": [
       "expo-av",
-      "expo-image-picker",
-      [
+      "expo-image-picker"
+    ]
+  }
+}
