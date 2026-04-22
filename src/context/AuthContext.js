@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 
-const API = 'http://10.0.2.2:8000/api'; // 10.0.2.2 = localhost on Android emulator
+const API = 'https://vertext-backend-h1e0.onrender.com/api';
 // For real device on same WiFi, use your PC/phone IP e.g. http://192.168.1.x:8000/api
 
 const AuthCtx = createContext(null);
