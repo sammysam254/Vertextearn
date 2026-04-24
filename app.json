@@ -15,11 +15,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.vertext.mobile",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Vertext needs camera access to record videos and go live",
-        "NSMicrophoneUsageDescription": "Vertext needs microphone access to record audio with videos"
-      }
+      "bundleIdentifier": "app.vertext.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -44,7 +40,7 @@
     "plugins": [
       "expo-av",
       "expo-image-picker",
-      "expo-camera"
+      "expo-secure-store"
     ]
   }
 }
