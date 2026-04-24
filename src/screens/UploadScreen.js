@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 
 const { width: W, height: H } = Dimensions.get('window');
 
+// ── 50 Filters ────────────────────────────────────────────────────────────────
 const FILTERS = [
   { id: 'none',     label: 'Normal',   tint: null },
   { id: 'vivid',    label: 'Vivid',    tint: 'rgba(255,100,0,0.15)' },
@@ -67,8 +68,8 @@ const FILTERS = [
 
 const MODES = [
   { key: 'upload', icon: 'cloud-upload-outline', label: 'Upload' },
-  { key: 'camera', icon: 'camera-outline',        label: 'Camera' },
-  { key: 'live',   icon: 'radio-outline',          label: 'Live' },
+  { key: 'camera', icon: 'camera-outline',       label: 'Camera' },
+  { key: 'live',   icon: 'radio-outline',         label: 'Live' },
 ];
 
 const VISIBILITY_OPTS = [
@@ -77,43 +78,7 @@ const VISIBILITY_OPTS = [
   { key: 'private', icon: 'lock-closed', label: 'Private' },
 ];
 
-// ── Permission gate — shown BEFORE mounting CameraView ──────────────────────
-function PermissionGate({ onGranted }) {
-  const [camPerm, requestCam] = useCameraPermissions();
-  const [micPerm, requestMic] = useMicrophonePermissions();
-  const [requesting, setRequesting] = useState(false);
-
-  useEffect(() => {
-    if (camPerm?.granted && micPerm?.granted) onGranted();
-  }, [camPerm, micPerm]);
-
-  const request = async () => {
-    setRequesting(true);
-    const c = await requestCam();
-    const m = await requestMic();
-    setRequesting(false);
-    if (c.granted && m.granted) onGranted();
-    else Alert.alert('Permission Required', 'Camera and microphone access is needed. Please enable in your phone Settings.');
-  };
-
-  if (!camPerm) return <View style={styles.permWrap}><ActivityIndicator color="#fe2c55" /></View>;
-
-  return (
-    <View style={styles.permWrap}>
-      <Ionicons name="camera-outline" size={64} color="#333" />
-      <Text style={styles.permTitle}>Camera Access Needed</Text>
-      <Text style={styles.permDesc}>Vertext needs your camera and microphone to record videos and go live.</Text>
-      <TouchableOpacity style={styles.permBtn} onPress={request} disabled={requesting}>
-        {requesting
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.permBtnText}>Allow Camera & Mic</Text>
-        }
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Shared post form ─────────────────────────────────────────────────────────
+// ── Shared post form ──────────────────────────────────────────────────────────
 function PostForm({ label, onPost, uploading, progress }) {
   const [caption, setCaption]       = useState('');
   const [visibility, setVisibility] = useState('public');
@@ -123,6 +88,7 @@ function PostForm({ label, onPost, uploading, progress }) {
         <Ionicons name="videocam" size={32} color="#fe2c55" />
         <Text style={styles.fileName} numberOfLines={1}>{label}</Text>
       </View>
+
       <TextInput
         style={styles.captionInput}
         placeholder="Write a caption… #hashtags @mentions"
@@ -133,6 +99,7 @@ function PostForm({ label, onPost, uploading, progress }) {
         numberOfLines={3}
         editable={!uploading}
       />
+
       <Text style={styles.sectionLabel}>Who can watch?</Text>
       <View style={styles.visRow}>
         {VISIBILITY_OPTS.map(v => (
@@ -147,6 +114,7 @@ function PostForm({ label, onPost, uploading, progress }) {
           </TouchableOpacity>
         ))}
       </View>
+
       {uploading && (
         <View style={styles.progressWrap}>
           <View style={styles.progressBg}>
@@ -155,8 +123,17 @@ function PostForm({ label, onPost, uploading, progress }) {
           <Text style={styles.progressText}>{progress}% uploaded</Text>
         </View>
       )}
-      <TouchableOpacity style={[styles.postBtn, uploading && styles.postBtnDisabled]} onPress={() => onPost(caption.trim(), visibility)} disabled={uploading}>
-        <LinearGradient colors={uploading ? ['#1a1a1a','#1a1a1a'] : ['#fe2c55','#ff6b35']} start={{x:0,y:0}} end={{x:1,y:0}} style={styles.postBtnGrad}>
+
+      <TouchableOpacity
+        style={[styles.postBtn, uploading && styles.postBtnDisabled]}
+        onPress={() => onPost(caption.trim(), visibility)}
+        disabled={uploading}
+      >
+        <LinearGradient
+          colors={uploading ? ['#1a1a1a','#1a1a1a'] : ['#fe2c55','#ff6b35']}
+          start={{ x:0, y:0 }} end={{ x:1, y:0 }}
+          style={styles.postBtnGrad}
+        >
           {uploading
             ? <><ActivityIndicator color="#fff" size="small" /><Text style={styles.postBtnText}>  Posting…</Text></>
             : <><Ionicons name="rocket" size={18} color="#fff" /><Text style={styles.postBtnText}>  Post to Vertext</Text></>
@@ -167,7 +144,7 @@ function PostForm({ label, onPost, uploading, progress }) {
   );
 }
 
-// ── Upload mode ──────────────────────────────────────────────────────────────
+// ── Upload mode ───────────────────────────────────────────────────────────────
 function UploadMode({ navigation }) {
   const [file, setFile]           = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -176,8 +153,10 @@ function UploadMode({ navigation }) {
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow media library access in Settings'); return; }
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, allowsEditing: false, quality: 1 });
+    if (!perm.granted) { Alert.alert('Permission needed', 'Allow media library access'); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos, allowsEditing: false, quality: 1,
+    });
     if (!r.canceled) setFile(r.assets[0]);
   };
 
@@ -192,21 +171,25 @@ function UploadMode({ navigation }) {
       form.append('caption', caption);
       form.append('visibility', visibility);
       const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); };
+      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded/e.total*100)); };
       await new Promise((res, rej) => {
         xhr.open('POST', `${API_URL}/videos/upload/`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => (xhr.status === 201 || xhr.status === 200) ? res() : rej(new Error(`Server error ${xhr.status}`));
+        xhr.onload = () => (xhr.status===201||xhr.status===200) ? res() : rej(new Error(`Server error ${xhr.status}`));
         xhr.onerror = () => rej(new Error('Network error'));
         xhr.send(form);
       });
-      Alert.alert('✅ Posted!', 'Your video is live', [{ text: 'View Feed', onPress: () => navigation?.navigate('Feed') }]);
+      Alert.alert('✅ Posted!', 'Your video is live on Vertext', [
+        { text: 'View Feed', onPress: () => navigation?.navigate('Feed') }
+      ]);
       setFile(null); setProgress(0);
-    } catch (e) { Alert.alert('Upload failed', e.message); }
+    } catch(e) { Alert.alert('Upload failed', e.message); }
     finally { setUploading(false); }
   };
 
-  if (file) return <PostForm label={file.fileName || 'video.mp4'} onPost={post} uploading={uploading} progress={progress} />;
+  if (file) return (
+    <PostForm label={file.fileName || 'video.mp4'} onPost={post} uploading={uploading} progress={progress} />
+  );
 
   return (
     <View style={styles.pickWrap}>
@@ -219,38 +202,49 @@ function UploadMode({ navigation }) {
   );
 }
 
-// ── Camera mode (only mounted after permission granted) ──────────────────────
-function CameraContent({ navigation }) {
-  const [facing, setFacing]         = useState('front');
-  const [recording, setRecording]   = useState(false);
+// ── Camera + Filters mode ─────────────────────────────────────────────────────
+function CameraMode({ navigation }) {
+  const [camPerm, requestCam] = useCameraPermissions();
+  const [micPerm, requestMic] = useMicrophonePermissions();
+  const [facing, setFacing]     = useState('front');
+  const [recording, setRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState(null);
-  const [filter, setFilter]         = useState(FILTERS[0]);
+  const [filter, setFilter]     = useState(FILTERS[0]);
   const [showFilters, setShowFilters] = useState(false);
-  const [elapsed, setElapsed]       = useState(0);
-  const [uploading, setUploading]   = useState(false);
-  const [progress, setProgress]     = useState(0);
+  const [elapsed, setElapsed]   = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const cameraRef = useRef(null);
   const timerRef  = useRef(null);
   const { getToken, API_URL } = useAuth();
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
+  if (!camPerm || !micPerm) return <View style={styles.permWrap}><ActivityIndicator color="#fe2c55" /></View>;
+
+  if (!camPerm.granted || !micPerm.granted) return (
+    <View style={styles.permWrap}>
+      <Ionicons name="camera-off-outline" size={56} color="#555" />
+      <Text style={styles.permText}>Camera & microphone access needed</Text>
+      <TouchableOpacity style={styles.permBtn} onPress={async () => { await requestCam(); await requestMic(); }}>
+        <Text style={styles.permBtnText}>Grant Permission</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const startRec = async () => {
-    if (!cameraRef.current || recording) return;
+    if (!cameraRef.current) return;
     setRecording(true); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 60 });
-      if (video?.uri) setRecordedUri(video.uri);
-    } catch (e) { console.log('Record error:', e); }
+      setRecordedUri(video.uri);
+    } catch(e) { console.log(e); }
     clearInterval(timerRef.current);
     setRecording(false);
   };
 
-  const stopRec = () => {
-    cameraRef.current?.stopRecording();
-    clearInterval(timerRef.current);
-  };
+  const stopRec = () => cameraRef.current?.stopRecording();
 
   const post = async (caption, visibility) => {
     if (!caption) { Alert.alert('Add a caption'); return; }
@@ -261,31 +255,40 @@ function CameraContent({ navigation }) {
       form.append('video_file', { uri: recordedUri, type: 'video/mp4', name: 'camera_video.mp4' });
       form.append('caption', caption);
       form.append('visibility', visibility);
+      form.append('filter', filter.id);
       const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); };
+      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded/e.total*100)); };
       await new Promise((res, rej) => {
         xhr.open('POST', `${API_URL}/videos/upload/`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => (xhr.status === 201 || xhr.status === 200) ? res() : rej(new Error(`Server error ${xhr.status}`));
+        xhr.onload = () => (xhr.status===201||xhr.status===200) ? res() : rej(new Error(`Server error ${xhr.status}`));
         xhr.onerror = () => rej(new Error('Network error'));
         xhr.send(form);
       });
-      Alert.alert('✅ Posted!', 'Your video is live', [{ text: 'View Feed', onPress: () => navigation?.navigate('Feed') }]);
+      Alert.alert('✅ Posted!', 'Your video is live', [
+        { text: 'View Feed', onPress: () => navigation?.navigate('Feed') }
+      ]);
       setRecordedUri(null); setProgress(0);
-    } catch (e) { Alert.alert('Upload failed', e.message); }
+    } catch(e) { Alert.alert('Upload failed', e.message); }
     finally { setUploading(false); }
   };
 
-  const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  if (recordedUri) return <PostForm label={`Recorded · ${filter.label} filter`} onPost={post} uploading={uploading} progress={progress} />;
+  if (recordedUri) return (
+    <PostForm label={`Recorded · ${filter.label} filter`} onPost={post} uploading={uploading} progress={progress} />
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} mode="video">
-        {filter.tint && <View style={[StyleSheet.absoluteFill, { backgroundColor: filter.tint }]} pointerEvents="none" />}
+        {filter.tint && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: filter.tint }]} pointerEvents="none" />
+        )}
+
+        {/* Top controls */}
         <View style={styles.camTopBar}>
-          <TouchableOpacity onPress={() => setFacing(f => f === 'front' ? 'back' : 'front')} style={styles.camIconBtn}>
+          <TouchableOpacity onPress={() => setFacing(f => f==='front'?'back':'front')} style={styles.camIconBtn}>
             <Ionicons name="camera-reverse-outline" size={26} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.camIconBtn}>
@@ -293,19 +296,31 @@ function CameraContent({ navigation }) {
             <Text style={styles.filterBadge}>{filter.label}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Timer */}
         {recording && (
           <View style={styles.timerBadge}>
             <View style={styles.recDot} />
             <Text style={styles.timerText}>{fmt(elapsed)}</Text>
           </View>
         )}
+
+        {/* Record button */}
         <View style={styles.camBottom}>
-          <TouchableOpacity onPress={recording ? stopRec : startRec} style={[styles.recBtn, recording && styles.recBtnActive]}>
-            {recording ? <View style={styles.recSquare} /> : <View style={styles.recCircle} />}
+          <TouchableOpacity
+            onPress={recording ? stopRec : startRec}
+            style={[styles.recBtn, recording && styles.recBtnActive]}
+          >
+            {recording
+              ? <View style={styles.recSquare} />
+              : <View style={styles.recCircle} />
+            }
           </TouchableOpacity>
           <Text style={styles.recHint}>{recording ? 'Tap to stop' : 'Tap to record · max 60s'}</Text>
         </View>
       </CameraView>
+
+      {/* Filter modal */}
       <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
         <View style={styles.filterModalWrap}>
           <View style={styles.filterSheet}>
@@ -316,14 +331,17 @@ function CameraContent({ navigation }) {
               numColumns={4}
               contentContainerStyle={{ paddingBottom: 16 }}
               renderItem={({ item }) => (
-                <TouchableOpacity style={[styles.filterItem, filter.id === item.id && styles.filterItemActive]} onPress={() => { setFilter(item); setShowFilters(false); }}>
+                <TouchableOpacity
+                  style={[styles.filterItem, filter.id===item.id && styles.filterItemActive]}
+                  onPress={() => { setFilter(item); setShowFilters(false); }}
+                >
                   <View style={[styles.filterSwatch, { backgroundColor: item.tint || '#222' }]} />
-                  <Text style={[styles.filterLabel, filter.id === item.id && { color: '#fe2c55' }]}>{item.label}</Text>
+                  <Text style={[styles.filterLabel, filter.id===item.id && { color:'#fe2c55' }]}>{item.label}</Text>
                 </TouchableOpacity>
               )}
             />
             <TouchableOpacity style={styles.filterCloseBtn} onPress={() => setShowFilters(false)}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Close</Text>
+              <Text style={{ color:'#fff', fontWeight:'700' }}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -332,31 +350,25 @@ function CameraContent({ navigation }) {
   );
 }
 
-function CameraMode({ navigation }) {
-  const [granted, setGranted] = useState(false);
-  if (!granted) return <PermissionGate onGranted={() => setGranted(true)} />;
-  return <CameraContent navigation={navigation} />;
-}
-
-// ── Live mode (only mounted after permission granted) ────────────────────────
-function LiveContent() {
-  const [isLive, setIsLive]     = useState(false);
-  const [title, setTitle]       = useState('');
-  const [facing, setFacing]     = useState('front');
-  const [viewers, setViewers]   = useState(0);
-  const [elapsed, setElapsed]   = useState(0);
-  const [hearts, setHearts]     = useState(0);
+// ── Live Streaming mode ───────────────────────────────────────────────────────
+function LiveMode() {
+  const [camPerm, requestCam] = useCameraPermissions();
+  const [micPerm, requestMic] = useMicrophonePermissions();
+  const [isLive, setIsLive]   = useState(false);
+  const [title, setTitle]     = useState('');
+  const [facing, setFacing]   = useState('front');
+  const [viewers, setViewers] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [hearts, setHearts]   = useState(0);
   const [comments, setComments] = useState([
-    { id: '1', user: 'alex_k',  text: '🔥 Let\'s go!' },
-    { id: '2', user: 'sam__x',  text: 'First here 👀' },
+    { id: '1', user: 'alex_k',   text: '🔥 Let\'s go!' },
+    { id: '2', user: 'sam__x',   text: 'First here 👀' },
+    { id: '3', user: 'zee_254',  text: 'Kenya represent 🇰🇪' },
   ]);
   const [newComment, setNewComment] = useState('');
   const timerRef   = useRef(null);
   const viewerRef  = useRef(null);
   const commentRef = useRef(null);
-
-  const FAKE_COMMENTS = ['Amazing!🙌','❤️❤️❤️','Keep going!','Love this 🔥','You\'re talented!','Wow 😍','Following now!','🇰🇪 Kenya!','Best creator!','Send hearts!'];
-  const FAKE_USERS    = ['john_k','mary_w','peter_x','grace_n','david_m','lucy_a','tom_o','faith_w'];
 
   useEffect(() => () => {
     clearInterval(timerRef.current);
@@ -364,21 +376,33 @@ function LiveContent() {
     clearInterval(commentRef.current);
   }, []);
 
+  const FAKE_COMMENTS = [
+    'Amazing content 🙌', '❤️❤️❤️', 'Keep going!', 'Love this', '🔥🔥',
+    'You are talented!', 'Wow', 'Nairobi vibes 💚', 'Following now!', '😍',
+  ];
+  const FAKE_USERS = ['john_k','mary_w','peter_254','grace_n','david_m','lucy_a','tom_o','faith_w'];
+
   const startLive = () => {
     if (!title.trim()) { Alert.alert('Add a stream title first'); return; }
-    setIsLive(true); setViewers(Math.floor(Math.random() * 12) + 3); setElapsed(0);
-    timerRef.current   = setInterval(() => setElapsed(s => s + 1), 1000);
-    viewerRef.current  = setInterval(() => {
-      if (Math.random() > 0.5) setViewers(v => v + Math.floor(Math.random() * 3));
-      if (Math.random() > 0.5) setHearts(h => h + Math.floor(Math.random() * 4) + 1);
+    setIsLive(true);
+    setViewers(Math.floor(Math.random()*15)+3);
+    setElapsed(0);
+
+    timerRef.current = setInterval(() => setElapsed(s => s+1), 1000);
+
+    viewerRef.current = setInterval(() => {
+      if (Math.random() > 0.5) setViewers(v => v + Math.floor(Math.random()*3));
+      if (Math.random() > 0.6) setHearts(h => h + Math.floor(Math.random()*5)+1);
     }, 3000);
+
     commentRef.current = setInterval(() => {
-      if (Math.random() > 0.35) {
-        setComments(c => [...c.slice(-7), {
+      if (Math.random() > 0.4) {
+        const fakeComment = {
           id: String(Date.now()),
-          user: FAKE_USERS[Math.floor(Math.random() * FAKE_USERS.length)],
-          text: FAKE_COMMENTS[Math.floor(Math.random() * FAKE_COMMENTS.length)],
-        }]);
+          user: FAKE_USERS[Math.floor(Math.random()*FAKE_USERS.length)],
+          text: FAKE_COMMENTS[Math.floor(Math.random()*FAKE_COMMENTS.length)],
+        };
+        setComments(c => [...c.slice(-7), fakeComment]);
       }
     }, 4000);
   };
@@ -387,9 +411,11 @@ function LiveContent() {
     clearInterval(timerRef.current);
     clearInterval(viewerRef.current);
     clearInterval(commentRef.current);
-    Alert.alert('🎬 Stream Ended', `Duration: ${fmt(elapsed)}\nViewers: ${viewers}\nHearts: ${hearts}`, [
-      { text: 'OK', onPress: () => { setIsLive(false); setElapsed(0); setViewers(0); setHearts(0); } }
-    ]);
+    Alert.alert(
+      '🎬 Stream Ended',
+      `Duration: ${fmt(elapsed)}\nPeak viewers: ${viewers}\nHearts received: ${hearts}`,
+      [{ text: 'OK', onPress: () => { setIsLive(false); setElapsed(0); setViewers(0); setHearts(0); } }]
+    );
   };
 
   const sendComment = () => {
@@ -398,59 +424,98 @@ function LiveContent() {
     setNewComment('');
   };
 
-  const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+  if (!camPerm?.granted || !micPerm?.granted) return (
+    <View style={styles.permWrap}>
+      <Ionicons name="radio-outline" size={56} color="#555" />
+      <Text style={styles.permText}>Camera & microphone needed for live</Text>
+      <TouchableOpacity style={styles.permBtn} onPress={async () => { await requestCam(); await requestMic(); }}>
+        <Text style={styles.permBtnText}>Grant Permission</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   if (!isLive) return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#0a0a0a' }} contentContainerStyle={{ padding: 24, paddingTop: 32 }}>
-      <View style={styles.liveHero}>
-        <View style={styles.liveIconCircle}><Ionicons name="radio" size={40} color="#fe2c55" /></View>
+    <ScrollView style={{ flex:1, backgroundColor:'#0a0a0a' }} contentContainerStyle={{ padding:24, paddingTop:32 }}>
+      <View style={styles.liveSetupHero}>
+        <View style={styles.liveIconCircle}>
+          <Ionicons name="radio" size={40} color="#fe2c55" />
+        </View>
         <Text style={styles.liveSetupTitle}>Go Live on Vertext</Text>
-        <Text style={styles.liveSetupSub}>Connect with your audience in real time</Text>
+        <Text style={styles.liveSetupSub}>Connect with your audience in real time and earn while streaming</Text>
       </View>
+
       <Text style={styles.sectionLabel}>Stream Title</Text>
-      <TextInput style={styles.captionInput} placeholder="What are you streaming today?" placeholderTextColor="#444" value={title} onChangeText={setTitle} />
+      <TextInput
+        style={styles.captionInput}
+        placeholder="What are you streaming today?"
+        placeholderTextColor="#444"
+        value={title}
+        onChangeText={setTitle}
+      />
+
       <View style={styles.liveFeatures}>
         {[
-          { icon: 'eye-outline',          text: 'Viewers join in real time' },
-          { icon: 'heart-outline',        text: 'Receive hearts & comments' },
-          { icon: 'cash-outline',         text: 'Earn 40% of ad revenue' },
-          { icon: 'share-social-outline', text: 'Stream shared to followers' },
+          { icon: 'eye-outline',         text: 'Viewers join in real time' },
+          { icon: 'heart-outline',       text: 'Receive hearts & comments' },
+          { icon: 'cash-outline',        text: 'Earn 40% of ad revenue' },
+          { icon: 'share-social-outline',text: 'Stream shared to your followers' },
         ].map((f, i) => (
           <View key={i} style={styles.liveFeatureItem}>
-            <View style={styles.liveFeatureIcon}><Ionicons name={f.icon} size={20} color="#fe2c55" /></View>
+            <View style={styles.liveFeatureIcon}>
+              <Ionicons name={f.icon} size={20} color="#fe2c55" />
+            </View>
             <Text style={styles.liveFeatureText}>{f.text}</Text>
           </View>
         ))}
       </View>
+
       <TouchableOpacity style={styles.goLiveBtn} onPress={startLive}>
         <LinearGradient colors={['#fe2c55','#ff1744']} start={{x:0,y:0}} end={{x:1,y:0}} style={styles.goLiveBtnGrad}>
           <Ionicons name="radio" size={22} color="#fff" />
           <Text style={styles.goLiveBtnText}>  Go Live Now</Text>
         </LinearGradient>
       </TouchableOpacity>
+
+      <Text style={styles.liveNote}>
+        💡 Tip: Announce your live in advance to get more viewers!
+      </Text>
     </ScrollView>
   );
 
+  // ── Active live stream UI ──
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <CameraView style={{ flex: 1 }} facing={facing}>
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.2)' }]} pointerEvents="none" />
+    <View style={{ flex:1, backgroundColor:'#000' }}>
+      <CameraView style={{ flex:1 }} facing={facing}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor:'rgba(0,0,0,0.2)' }]} pointerEvents="none" />
+
+        {/* Top bar */}
         <View style={styles.liveTopBar}>
-          <View style={styles.liveBadge}><View style={styles.liveRedDot} /><Text style={styles.liveBadgeText}>LIVE</Text></View>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveRedDot} />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
+          </View>
           <View style={styles.liveStatsRow}>
             <Ionicons name="eye" size={13} color="#fff" />
             <Text style={styles.liveStatText}>{viewers}</Text>
             <Text style={styles.liveTimeText}>{fmt(elapsed)}</Text>
           </View>
           <View style={styles.liveHeartsRow}>
-            <Text style={{ fontSize: 14 }}>❤️</Text>
+            <Text style={{ fontSize:14 }}>❤️</Text>
             <Text style={styles.liveStatText}>{hearts}</Text>
           </View>
-          <TouchableOpacity onPress={() => setFacing(f => f === 'front' ? 'back' : 'front')} style={styles.camIconBtn}>
+          <TouchableOpacity onPress={() => setFacing(f => f==='front'?'back':'front')} style={styles.camIconBtn}>
             <Ionicons name="camera-reverse-outline" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
-        <View style={styles.liveTitleBar}><Text style={styles.liveTitleText} numberOfLines={1}>{title}</Text></View>
+
+        {/* Stream title */}
+        <View style={styles.liveTitleBar}>
+          <Text style={styles.liveTitleText} numberOfLines={1}>{title}</Text>
+        </View>
+
+        {/* Comments */}
         <View style={styles.liveCommentsFeed} pointerEvents="none">
           {comments.slice(-5).map(c => (
             <View key={c.id} style={styles.liveCommentBubble}>
@@ -459,38 +524,52 @@ function LiveContent() {
             </View>
           ))}
         </View>
+
+        {/* Comment input + end button */}
         <View style={styles.liveBottomBar}>
-          <TextInput style={styles.liveCommentInput} placeholder="Say something…" placeholderTextColor="#888" value={newComment} onChangeText={setNewComment} onSubmitEditing={sendComment} />
-          <TouchableOpacity onPress={sendComment} style={styles.liveSendBtn}><Ionicons name="send" size={18} color="#fff" /></TouchableOpacity>
-          <TouchableOpacity style={styles.endLiveBtn} onPress={endLive}><Text style={styles.endLiveBtnText}>End</Text></TouchableOpacity>
+          <TextInput
+            style={styles.liveCommentInput}
+            placeholder="Say something…"
+            placeholderTextColor="#888"
+            value={newComment}
+            onChangeText={setNewComment}
+            onSubmitEditing={sendComment}
+          />
+          <TouchableOpacity onPress={sendComment} style={styles.liveSendBtn}>
+            <Ionicons name="send" size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.endLiveBtn} onPress={endLive}>
+            <Text style={styles.endLiveBtnText}>End</Text>
+          </TouchableOpacity>
         </View>
       </CameraView>
     </View>
   );
 }
 
-function LiveMode() {
-  const [granted, setGranted] = useState(false);
-  if (!granted) return <PermissionGate onGranted={() => setGranted(true)} />;
-  return <LiveContent />;
-}
-
-// ── Main screen ──────────────────────────────────────────────────────────────
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function UploadScreen({ navigation }) {
   const [mode, setMode] = useState('upload');
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
+
       <View style={styles.modeTabs}>
         {MODES.map(m => (
-          <TouchableOpacity key={m.key} style={[styles.modeTab, mode === m.key && styles.modeTabActive]} onPress={() => setMode(m.key)}>
-            <Ionicons name={m.icon} size={22} color={mode === m.key ? '#fe2c55' : '#555'} />
-            <Text style={[styles.modeLabel, mode === m.key && styles.modeLabelActive]}>{m.label}</Text>
-            {mode === m.key && <View style={styles.modeUnderline} />}
+          <TouchableOpacity
+            key={m.key}
+            style={[styles.modeTab, mode===m.key && styles.modeTabActive]}
+            onPress={() => setMode(m.key)}
+          >
+            <Ionicons name={m.icon} size={22} color={mode===m.key ? '#fe2c55' : '#555'} />
+            <Text style={[styles.modeLabel, mode===m.key && styles.modeLabelActive]}>{m.label}</Text>
+            {mode===m.key && <View style={styles.modeUnderline} />}
           </TouchableOpacity>
         ))}
       </View>
-      <View style={{ flex: 1 }}>
+
+      <View style={{ flex:1 }}>
         {mode === 'upload' && <UploadMode navigation={navigation} />}
         {mode === 'camera' && <CameraMode navigation={navigation} />}
         {mode === 'live'   && <LiveMode />}
@@ -499,103 +578,106 @@ export default function UploadScreen({ navigation }) {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0a' },
-  modeTabs: { flexDirection: 'row', backgroundColor: '#0a0a0a', paddingTop: Platform.OS === 'android' ? 44 : 56, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
-  modeTab: { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3 },
-  modeTabActive: {},
-  modeLabel: { color: '#555', fontSize: 11, fontWeight: '700' },
-  modeLabelActive: { color: '#fe2c55' },
-  modeUnderline: { height: 2, width: 28, backgroundColor: '#fe2c55', borderRadius: 1, marginTop: 2 },
+  root: { flex:1, backgroundColor:'#0a0a0a' },
 
-  // Permission gate
-  permWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, padding: 32, backgroundColor: '#0a0a0a' },
-  permTitle: { color: '#fff', fontWeight: '800', fontSize: 20, textAlign: 'center' },
-  permDesc: { color: '#666', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  permBtn: { backgroundColor: '#fe2c55', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, minWidth: 200, alignItems: 'center' },
-  permBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  // Mode tabs
+  modeTabs: { flexDirection:'row', backgroundColor:'#0a0a0a', paddingTop: Platform.OS==='android' ? 44 : 56, borderBottomWidth:1, borderBottomColor:'#1a1a1a' },
+  modeTab: { flex:1, alignItems:'center', paddingVertical:10, gap:3 },
+  modeTabActive: {},
+  modeLabel: { color:'#555', fontSize:11, fontWeight:'700' },
+  modeLabelActive: { color:'#fe2c55' },
+  modeUnderline: { height:2, width:28, backgroundColor:'#fe2c55', borderRadius:1, marginTop:2 },
 
   // Upload pick
-  pickWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  pickZone: { width: '100%', borderWidth: 2, borderStyle: 'dashed', borderColor: '#2a2a2a', borderRadius: 20, padding: 48, alignItems: 'center', backgroundColor: '#111', gap: 12 },
-  pickTitle: { color: '#fff', fontWeight: '700', fontSize: 17 },
-  pickSub: { color: '#555', fontSize: 13 },
+  pickWrap: { flex:1, justifyContent:'center', alignItems:'center', padding:24 },
+  pickZone: { width:'100%', borderWidth:2, borderStyle:'dashed', borderColor:'#2a2a2a', borderRadius:20, padding:48, alignItems:'center', backgroundColor:'#111', gap:12 },
+  pickTitle: { color:'#fff', fontWeight:'700', fontSize:17 },
+  pickSub: { color:'#555', fontSize:13 },
 
-  // Form
-  formContent: { padding: 20, paddingBottom: 100 },
-  fileInfoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#111', borderRadius: 12, padding: 14, marginBottom: 20 },
-  fileName: { color: '#fff', fontWeight: '600', flex: 1 },
-  captionInput: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top', marginBottom: 20, minHeight: 80 },
-  sectionLabel: { color: '#777', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-  visRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  visBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#111', borderWidth: 1, borderColor: '#222', borderRadius: 10, padding: 10 },
-  visBtnActive: { borderColor: '#fe2c55', backgroundColor: '#1a0808' },
-  visLabel: { color: '#555', fontSize: 12, fontWeight: '600' },
-  visLabelActive: { color: '#fe2c55' },
-  progressWrap: { marginBottom: 16 },
-  progressBg: { height: 5, backgroundColor: '#222', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
-  progressFill: { height: '100%', backgroundColor: '#fe2c55', borderRadius: 3 },
-  progressText: { color: '#888', fontSize: 12, textAlign: 'center' },
-  postBtn: { borderRadius: 12, overflow: 'hidden' },
-  postBtnDisabled: { opacity: 0.5 },
-  postBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  postBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  // Post form
+  formContent: { padding:20, paddingBottom:100 },
+  fileInfoBox: { flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#111', borderRadius:12, padding:14, marginBottom:20 },
+  fileName: { color:'#fff', fontWeight:'600', flex:1 },
+  captionInput: { backgroundColor:'#111', borderWidth:1, borderColor:'#222', borderRadius:12, padding:14, color:'#fff', fontSize:15, textAlignVertical:'top', marginBottom:20, minHeight:80 },
+  sectionLabel: { color:'#777', fontSize:12, fontWeight:'700', textTransform:'uppercase', letterSpacing:0.5, marginBottom:10 },
+  visRow: { flexDirection:'row', gap:10, marginBottom:24 },
+  visBtn: { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:5, backgroundColor:'#111', borderWidth:1, borderColor:'#222', borderRadius:10, padding:10 },
+  visBtnActive: { borderColor:'#fe2c55', backgroundColor:'#1a0808' },
+  visLabel: { color:'#555', fontSize:12, fontWeight:'600' },
+  visLabelActive: { color:'#fe2c55' },
+  progressWrap: { marginBottom:16 },
+  progressBg: { height:5, backgroundColor:'#222', borderRadius:3, overflow:'hidden', marginBottom:6 },
+  progressFill: { height:'100%', backgroundColor:'#fe2c55', borderRadius:3 },
+  progressText: { color:'#888', fontSize:12, textAlign:'center' },
+  postBtn: { borderRadius:12, overflow:'hidden' },
+  postBtnDisabled: { opacity:0.5 },
+  postBtnGrad: { flexDirection:'row', alignItems:'center', justifyContent:'center', padding:16 },
+  postBtnText: { color:'#fff', fontWeight:'800', fontSize:16 },
 
   // Camera
-  camTopBar: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, zIndex: 10 },
-  camIconBtn: { backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  filterBadge: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  timerBadge: { position: 'absolute', top: 68, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fe2c55' },
-  timerText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  camBottom: { position: 'absolute', bottom: 56, left: 0, right: 0, alignItems: 'center', gap: 12 },
-  recBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
-  recBtnActive: { borderColor: '#fe2c55' },
-  recCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#fe2c55' },
-  recSquare: { width: 28, height: 28, borderRadius: 6, backgroundColor: '#fe2c55' },
-  recHint: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  camTopBar: { position:'absolute', top:16, left:0, right:0, flexDirection:'row', justifyContent:'space-between', paddingHorizontal:20, zIndex:10 },
+  camIconBtn: { backgroundColor:'rgba(0,0,0,0.55)', borderRadius:20, padding:8, flexDirection:'row', alignItems:'center', gap:4 },
+  filterBadge: { color:'#fff', fontSize:11, fontWeight:'700' },
+  timerBadge: { position:'absolute', top:68, alignSelf:'center', flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'rgba(0,0,0,0.65)', borderRadius:20, paddingHorizontal:14, paddingVertical:6 },
+  recDot: { width:8, height:8, borderRadius:4, backgroundColor:'#fe2c55' },
+  timerText: { color:'#fff', fontWeight:'700', fontSize:15 },
+  camBottom: { position:'absolute', bottom:56, left:0, right:0, alignItems:'center', gap:12 },
+  recBtn: { width:80, height:80, borderRadius:40, borderWidth:4, borderColor:'#fff', justifyContent:'center', alignItems:'center' },
+  recBtnActive: { borderColor:'#fe2c55' },
+  recCircle: { width:60, height:60, borderRadius:30, backgroundColor:'#fe2c55' },
+  recSquare: { width:28, height:28, borderRadius:6, backgroundColor:'#fe2c55' },
+  recHint: { color:'rgba(255,255,255,0.7)', fontSize:13 },
 
-  // Filters
-  filterModalWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  filterSheet: { backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: H * 0.65 },
-  filterSheetTitle: { color: '#fff', fontWeight: '800', fontSize: 18, marginBottom: 16, textAlign: 'center' },
-  filterItem: { flex: 1 / 4, alignItems: 'center', padding: 8, borderRadius: 10, margin: 2 },
-  filterItemActive: { backgroundColor: '#1a0808' },
-  filterSwatch: { width: 44, height: 44, borderRadius: 22, marginBottom: 4, borderWidth: 1, borderColor: '#333' },
-  filterLabel: { color: '#888', fontSize: 10, fontWeight: '600', textAlign: 'center' },
-  filterCloseBtn: { backgroundColor: '#222', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
+  // Filter modal
+  filterModalWrap: { flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'flex-end' },
+  filterSheet: { backgroundColor:'#111', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, maxHeight:H*0.65 },
+  filterSheetTitle: { color:'#fff', fontWeight:'800', fontSize:18, marginBottom:16, textAlign:'center' },
+  filterItem: { flex:1/4, alignItems:'center', padding:8, borderRadius:10, margin:2 },
+  filterItemActive: { backgroundColor:'#1a0808' },
+  filterSwatch: { width:44, height:44, borderRadius:22, marginBottom:4, borderWidth:1, borderColor:'#333' },
+  filterLabel: { color:'#888', fontSize:10, fontWeight:'600', textAlign:'center' },
+  filterCloseBtn: { backgroundColor:'#222', borderRadius:12, padding:14, alignItems:'center', marginTop:8 },
+
+  // Permissions
+  permWrap: { flex:1, justifyContent:'center', alignItems:'center', gap:16, padding:32 },
+  permText: { color:'#888', textAlign:'center', fontSize:15 },
+  permBtn: { backgroundColor:'#fe2c55', borderRadius:12, paddingHorizontal:28, paddingVertical:12 },
+  permBtnText: { color:'#fff', fontWeight:'700', fontSize:15 },
 
   // Live setup
-  liveHero: { alignItems: 'center', gap: 10, marginBottom: 28 },
-  liveIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1a0808', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fe2c55' },
-  liveSetupTitle: { color: '#fff', fontWeight: '900', fontSize: 24 },
-  liveSetupSub: { color: '#666', fontSize: 14, textAlign: 'center' },
-  liveFeatures: { gap: 10, marginBottom: 28 },
-  liveFeatureItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#111', borderRadius: 12, padding: 14 },
-  liveFeatureIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1a0808', justifyContent: 'center', alignItems: 'center' },
-  liveFeatureText: { color: '#aaa', fontSize: 14, flex: 1 },
-  goLiveBtn: { borderRadius: 14, overflow: 'hidden' },
-  goLiveBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18 },
-  goLiveBtnText: { color: '#fff', fontWeight: '900', fontSize: 18 },
+  liveSetupHero: { alignItems:'center', gap:10, marginBottom:28 },
+  liveIconCircle: { width:80, height:80, borderRadius:40, backgroundColor:'#1a0808', justifyContent:'center', alignItems:'center', borderWidth:2, borderColor:'#fe2c55' },
+  liveSetupTitle: { color:'#fff', fontWeight:'900', fontSize:24 },
+  liveSetupSub: { color:'#666', fontSize:14, textAlign:'center', lineHeight:20 },
+  liveFeatures: { gap:10, marginBottom:28 },
+  liveFeatureItem: { flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#111', borderRadius:12, padding:14 },
+  liveFeatureIcon: { width:36, height:36, borderRadius:18, backgroundColor:'#1a0808', justifyContent:'center', alignItems:'center' },
+  liveFeatureText: { color:'#aaa', fontSize:14, flex:1 },
+  goLiveBtn: { borderRadius:14, overflow:'hidden', marginBottom:16 },
+  goLiveBtnGrad: { flexDirection:'row', alignItems:'center', justifyContent:'center', padding:18 },
+  goLiveBtnText: { color:'#fff', fontWeight:'900', fontSize:18 },
+  liveNote: { color:'#555', fontSize:13, textAlign:'center', lineHeight:20 },
 
-  // Live active
-  liveTopBar: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 8, zIndex: 10 },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#fe2c55', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  liveRedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
-  liveBadgeText: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  liveStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  liveHeartsRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  liveStatText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  liveTimeText: { color: '#aaa', fontSize: 12, marginLeft: 6 },
-  liveTitleBar: { position: 'absolute', top: 64, left: 16, right: 60 },
-  liveTitleText: { color: '#fff', fontWeight: '700', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  liveCommentsFeed: { position: 'absolute', bottom: 90, left: 12, right: 16, gap: 6 },
-  liveCommentBubble: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', maxWidth: '88%' },
-  liveCommentUser: { color: '#fe2c55', fontWeight: '700', fontSize: 13 },
-  liveCommentText: { color: '#fff', fontSize: 13, flexShrink: 1 },
-  liveBottomBar: { position: 'absolute', bottom: 24, left: 12, right: 12, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  liveCommentInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  liveSendBtn: { backgroundColor: 'rgba(254,44,85,0.8)', borderRadius: 20, padding: 10 },
-  endLiveBtn: { backgroundColor: 'rgba(254,44,85,0.9)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  endLiveBtnText: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  // Live stream active
+  liveTopBar: { position:'absolute', top:16, left:0, right:0, flexDirection:'row', alignItems:'center', paddingHorizontal:14, gap:8, zIndex:10 },
+  liveBadge: { flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#fe2c55', borderRadius:6, paddingHorizontal:10, paddingVertical:4 },
+  liveRedDot: { width:7, height:7, borderRadius:4, backgroundColor:'#fff' },
+  liveBadgeText: { color:'#fff', fontWeight:'900', fontSize:12 },
+  liveStatsRow: { flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(0,0,0,0.55)', borderRadius:6, paddingHorizontal:10, paddingVertical:4 },
+  liveHeartsRow: { flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(0,0,0,0.55)', borderRadius:6, paddingHorizontal:10, paddingVertical:4 },
+  liveStatText: { color:'#fff', fontSize:12, fontWeight:'700' },
+  liveTimeText: { color:'#aaa', fontSize:12, marginLeft:6 },
+  liveTitleBar: { position:'absolute', top:64, left:16, right:60 },
+  liveTitleText: { color:'#fff', fontWeight:'700', fontSize:14, textShadowColor:'rgba(0,0,0,0.9)', textShadowOffset:{width:0,height:1}, textShadowRadius:4 },
+  liveCommentsFeed: { position:'absolute', bottom:90, left:12, right:16, gap:6 },
+  liveCommentBubble: { flexDirection:'row', backgroundColor:'rgba(0,0,0,0.6)', borderRadius:10, paddingHorizontal:10, paddingVertical:5, alignSelf:'flex-start', maxWidth:'88%' },
+  liveCommentUser: { color:'#fe2c55', fontWeight:'700', fontSize:13 },
+  liveCommentText: { color:'#fff', fontSize:13, flexShrink:1 },
+  liveBottomBar: { position:'absolute', bottom:24, left:12, right:12, flexDirection:'row', gap:8, alignItems:'center' },
+  liveCommentInput: { flex:1, backgroundColor:'rgba(0,0,0,0.65)', borderRadius:24, paddingHorizontal:16, paddingVertical:10, color:'#fff', fontSize:14, borderWidth:1, borderColor:'rgba(255,255,255,0.2)' },
+  liveSendBtn: { backgroundColor:'rgba(254,44,85,0.8)', borderRadius:20, padding:10 },
+  endLiveBtn: { backgroundColor:'rgba(254,44,85,0.9)', borderRadius:10, paddingHorizontal:14, paddingVertical:10 },
+  endLiveBtnText: { color:'#fff', fontWeight:'900', fontSize:13 },
 });

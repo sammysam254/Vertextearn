@@ -6,6 +6,38 @@ export const API_URL = 'https://vertext-backend-h1e0.onrender.com/api';
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
+const memCache = { feed: null, ts: 0 };
+const CACHE_TTL = 5 * 60 * 1000;
+
+export async function getCachedFeed() {
+  if (memCache.feed && Date.now() - memCache.ts < CACHE_TTL) return memCache.feed;
+  try {
+    const raw = await SecureStore.getItemAsync('vertext_feed_cache');
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    memCache.feed = data; memCache.ts = ts;
+    return data;
+  } catch { return null; }
+}
+
+export async function setCachedFeed(data) {
+  memCache.feed = data; memCache.ts = Date.now();
+  try {
+    const slim = data.slice(0, 8).map(v => ({
+      id: v.id, video_url: v.video_url, thumbnail_url: v.thumbnail_url,
+      caption: v.caption, likes_count: v.likes_count, comments_count: v.comments_count,
+      shares_count: v.shares_count, saves_count: v.saves_count,
+      views_count: v.views_count, is_liked: v.is_liked, is_saved: v.is_saved,
+      is_ad: v.is_ad, user: v.user,
+    }));
+    const payload = JSON.stringify({ data: slim, ts: Date.now() });
+    if (payload.length < 2000) {
+      await SecureStore.setItemAsync('vertext_feed_cache', payload);
+    }
+  } catch {}
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,10 +71,7 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (username, password) => {
-    const data = await apiFetch('/auth/login/', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
+    const data = await apiFetch('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
     await SecureStore.setItemAsync('vertext_token', data.access);
     await SecureStore.setItemAsync('vertext_user', JSON.stringify(data.user));
     setUser(data.user);
@@ -50,18 +79,18 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (username, email, password) => {
-    const data = await apiFetch('/auth/register/', {
-      method: 'POST',
-      body: JSON.stringify({ username, email, password }),
-    });
+    const data = await apiFetch('/auth/register/', { method: 'POST', body: JSON.stringify({ username, email, password }) });
     await SecureStore.setItemAsync('vertext_token', data.access);
     await SecureStore.setItemAsync('vertext_user', JSON.stringify(data.user));
     setUser(data.user);
+    return { can_claim_blue: data.can_claim_blue || false };
   };
 
   const logout = async () => {
     await SecureStore.deleteItemAsync('vertext_token');
     await SecureStore.deleteItemAsync('vertext_user');
+    await SecureStore.deleteItemAsync('vertext_feed_cache');
+    memCache.feed = null;
     setUser(null);
   };
 
