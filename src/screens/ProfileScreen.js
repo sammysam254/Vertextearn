@@ -191,13 +191,31 @@ export default function ProfileScreen({ route }) {
 
         {/* Buttons */}
         {isOwn ? (
-          <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditProfile(true)}>
-              <Text style={styles.editBtnText}>Edit Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.shareBtn}>
-              <Ionicons name="share-social-outline" size={18} color="#fff" />
-            </TouchableOpacity>
+          <View>
+            <View style={styles.btnRow}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditProfile(true)}>
+                <Text style={styles.editBtnText}>Edit Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareBtn}>
+                <Ionicons name="share-social-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            {authUser?.username === 'samson' && (
+              <TouchableOpacity style={styles.adminBtn} onPress={() => setShowAdmin(true)}>
+                <Ionicons name="settings" size={16} color="#000" />
+                <Text style={styles.adminBtnText}>⚙️ Admin Panel</Text>
+              </TouchableOpacity>
+            )}
+            {!displayUser.is_verified && (
+              <TouchableOpacity style={styles.verifyBtn} onPress={() => setShowVerifyModal(true)}>
+                <Text style={styles.verifyBtnText}>✓ Apply for Verification</Text>
+              </TouchableOpacity>
+            )}
+            {displayUser.is_verified && (
+              <View style={[styles.verifyBtn, { backgroundColor: '#1d9bf0' }]}>
+                <Text style={styles.verifyBtnText}>✓ Verified</Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.btnRow}>
@@ -215,22 +233,6 @@ export default function ProfileScreen({ route }) {
               <Text style={{ color: '#fff', fontWeight: '600' }}>Message</Text>
             </TouchableOpacity>
           </View>
-          {authUser?.username === 'samson' && (
-            <TouchableOpacity style={styles.adminBtn} onPress={() => setShowAdmin(true)}>
-              <Ionicons name="settings" size={16} color="#000" />
-              <Text style={styles.adminBtnText}>⚙️ Admin Panel</Text>
-            </TouchableOpacity>
-          )}
-          {isOwn && !displayUser.is_verified && (
-            <TouchableOpacity style={styles.verifyBtn} onPress={() => setShowVerifyModal(true)}>
-              <Text style={styles.verifyBtnText}>✓ Apply for Verification</Text>
-            </TouchableOpacity>
-          )}
-          {isOwn && displayUser.is_verified && (
-            <View style={[styles.verifyBtn, { backgroundColor: '#1d9bf0' }]}>
-              <Text style={styles.verifyBtnText}>✓ Verified</Text>
-            </View>
-          )}
         )}
 
         {/* Monetization card */}
