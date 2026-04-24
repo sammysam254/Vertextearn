@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
+import AdminPanel from './AdminPanel';
 
 const { width: W } = Dimensions.get('window');
 const THUMB_W = (W - 4) / 3;
@@ -33,6 +34,10 @@ export default function ProfileScreen({ route }) {
   const [bio, setBio] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyReason, setVerifyReason] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   const loadProfile = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -210,6 +215,22 @@ export default function ProfileScreen({ route }) {
               <Text style={{ color: '#fff', fontWeight: '600' }}>Message</Text>
             </TouchableOpacity>
           </View>
+          {authUser?.username === 'samson' && (
+            <TouchableOpacity style={styles.adminBtn} onPress={() => setShowAdmin(true)}>
+              <Ionicons name="settings" size={16} color="#000" />
+              <Text style={styles.adminBtnText}>⚙️ Admin Panel</Text>
+            </TouchableOpacity>
+          )}
+          {isOwn && !displayUser.is_verified && (
+            <TouchableOpacity style={styles.verifyBtn} onPress={() => setShowVerifyModal(true)}>
+              <Text style={styles.verifyBtnText}>✓ Apply for Verification</Text>
+            </TouchableOpacity>
+          )}
+          {isOwn && displayUser.is_verified && (
+            <View style={[styles.verifyBtn, { backgroundColor: '#1d9bf0' }]}>
+              <Text style={styles.verifyBtnText}>✓ Verified</Text>
+            </View>
+          )}
         )}
 
         {/* Monetization card */}
@@ -334,6 +355,61 @@ export default function ProfileScreen({ route }) {
           </View>
         </View>
       )}
+      {/* Admin Panel */}
+      {showAdmin && (
+        <View style={StyleSheet.absoluteFillObject} >
+          <AdminPanel onClose={() => setShowAdmin(false)} />
+        </View>
+      )}
+
+      {/* Verification Apply Modal */}
+      {showVerifyModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Apply for Blue Badge ✓</Text>
+            <Text style={{ color: '#888', fontSize: 13, marginBottom: 16 }}>
+              You need at least 60 followers and 5,000 total views to qualify.
+            </Text>
+            <Text style={styles.fieldLabel}>Why do you deserve verification?</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={verifyReason}
+              onChangeText={setVerifyReason}
+              placeholder="Tell us about yourself and your content..."
+              placeholderTextColor="#555"
+              multiline
+              numberOfLines={4}
+            />
+            <TouchableOpacity
+              style={styles.saveBtn}
+              disabled={verifyLoading}
+              onPress={async () => {
+                setVerifyLoading(true);
+                try {
+                  await apiFetch('/auth/apply-verification/', {
+                    method: 'POST',
+                    body: JSON.stringify({ reason: verifyReason }),
+                  });
+                  setShowVerifyModal(false);
+                  Alert.alert('✅', 'Application submitted! Admin will review it.');
+                } catch (e) {
+                  Alert.alert('Error', e.message);
+                }
+                setVerifyLoading(false);
+              }}
+            >
+              {verifyLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.saveBtnText}>Submit Application</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowVerifyModal(false)}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -395,4 +471,8 @@ const styles = StyleSheet.create({
   settingsItemText: { flex: 1, color: '#fff', fontSize: 16 },
   logoutBtn: { marginTop: 20, borderWidth: 1.5, borderColor: '#fe2c55', borderRadius: 10, padding: 14, alignItems: 'center' },
   logoutText: { color: '#fe2c55', fontWeight: '800', fontSize: 16 },
+  adminBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffd700', borderRadius: 8, padding: 10, marginHorizontal: 20, marginBottom: 10, justifyContent: 'center' },
+  adminBtnText: { color: '#000', fontWeight: '800', fontSize: 14 },
+  verifyBtn: { backgroundColor: '#1a1a3a', borderWidth: 1, borderColor: '#1d9bf0', borderRadius: 8, padding: 10, marginHorizontal: 20, marginBottom: 10, alignItems: 'center' },
+  verifyBtnText: { color: '#1d9bf0', fontWeight: '700', fontSize: 14 },
 });

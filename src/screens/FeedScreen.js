@@ -95,10 +95,13 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
       viewTimer.current = setTimeout(async () => {
         if (!viewCounted.current) {
           viewCounted.current = true;
-          setViews(v => v + 1);
-          try { await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' }); } catch {}
+          try {
+            const res = await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' });
+            // Only increment UI counter if backend says it's a new view
+            if (res?.counted) setViews(v => v + 1);
+          } catch {}
         }
-      }, 3000);
+      }, 5000);
     } else {
       clearTimeout(viewTimer.current);
       videoRef.current.pauseAsync().catch(() => {});

@@ -46,30 +46,13 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         const stored = await SecureStore.getItemAsync('vertext_user');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          // Make sure it's a valid object before setting
-          if (parsed && typeof parsed === 'object') {
-            setUser(parsed);
-          }
-        }
-      } catch {
-        // Clear corrupted data
-        try {
-          await SecureStore.deleteItemAsync('vertext_user');
-          await SecureStore.deleteItemAsync('vertext_token');
-          await SecureStore.deleteItemAsync('vertext_feed_cache');
-        } catch {}
-      }
+        if (stored) setUser(JSON.parse(stored));
+      } catch {}
       setLoading(false);
     })();
   }, []);
 
-  const getToken = async () => {
-    try {
-      return await SecureStore.getItemAsync('vertext_token');
-    } catch { return null; }
-  };
+  const getToken = async () => SecureStore.getItemAsync('vertext_token');
 
   const apiFetch = async (path, opts = {}) => {
     const token = await getToken();
@@ -89,10 +72,11 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     const data = await apiFetch('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+    // Handle both 'access' and 'token' field names from backend
     const token = data.access || data.token || '';
     const userObj = data.user || {};
     if (token) await SecureStore.setItemAsync('vertext_token', String(token));
-    await SecureStore.setItemAsync('vertext_user', JSON.stringify(userObj));
+    if (userObj) await SecureStore.setItemAsync('vertext_user', JSON.stringify(userObj));
     setUser(userObj);
     return userObj;
   };
@@ -102,15 +86,15 @@ export function AuthProvider({ children }) {
     const token = data.access || data.token || '';
     const userObj = data.user || {};
     if (token) await SecureStore.setItemAsync('vertext_token', String(token));
-    await SecureStore.setItemAsync('vertext_user', JSON.stringify(userObj));
+    if (userObj) await SecureStore.setItemAsync('vertext_user', JSON.stringify(userObj));
     setUser(userObj);
     return { can_claim_blue: data.can_claim_blue || false };
   };
 
   const logout = async () => {
-    try { await SecureStore.deleteItemAsync('vertext_token'); } catch {}
-    try { await SecureStore.deleteItemAsync('vertext_user'); } catch {}
-    try { await SecureStore.deleteItemAsync('vertext_feed_cache'); } catch {}
+    await SecureStore.deleteItemAsync('vertext_token');
+    await SecureStore.deleteItemAsync('vertext_user');
+    await SecureStore.deleteItemAsync('vertext_feed_cache');
     memCache.feed = null;
     setUser(null);
   };
@@ -122,8 +106,6 @@ export function AuthProvider({ children }) {
       setUser(data);
     } catch {}
   };
-
-  if (loading) return null;
 
   return (
     <AuthCtx.Provider value={{ user, setUser, login, register, logout, apiFetch, loading, getToken, refreshUser, API_URL }}>
