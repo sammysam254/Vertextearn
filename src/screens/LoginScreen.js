@@ -67,7 +67,7 @@ export default function LoginScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Demo shortcut */}
-        <TouchableOpacity onPress={() => { setForm({ username: 'demo', password: 'demo123' }); handle(); }} style={styles.demoBtn}>
+        <TouchableOpacity onPress={() => { setForm({ username: 'demo', password: 'demo1234' }); handle(); }} style={styles.demoBtn}>
           <Text style={styles.demoText}>Continue as Demo</Text>
         </TouchableOpacity>
       </ScrollView>

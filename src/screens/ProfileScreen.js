@@ -39,7 +39,7 @@ export default function ProfileScreen({ route }) {
     else setLoading(true);
     try {
       const username = targetUsername || authUser?.username;
-      const data = await apiFetch(`/profile/${username}/`);
+      const data = await apiFetch(`/profile/u/${username}/`);
       setProfile(data.user);
       setVideos(data.videos || []);
       setBio(data.user?.bio || '');
@@ -57,7 +57,7 @@ export default function ProfileScreen({ route }) {
     if (followLoading) return;
     setFollowLoading(true);
     try {
-      await apiFetch(`/profile/${profile.username}/follow/`, { method: 'POST' });
+      await apiFetch(`/profile/u/${profile.username}/follow/`, { method: 'POST' });
       setFollowing(f => !f);
       setProfile(p => ({
         ...p,
