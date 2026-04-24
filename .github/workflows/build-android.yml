@@ -32,7 +32,7 @@ jobs:
         run: npm install -g @expo/cli@latest
 
       - name: Expo Prebuild
-        run: npx expo prebuild --platform android --clean --no-install
+        run: npx expo prebuild --platform android --clean
         env:
           EXPO_NO_GIT_STATUS: 1
 
