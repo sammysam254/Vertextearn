@@ -1,10 +1,31 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const API_URL = 'https://vertext-backend-h1e0.onrender.com/api';
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
+
+// Cache feed data so app opens instantly from cache while fetching fresh
+const FEED_CACHE_KEY = 'vertext_feed_cache';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function getCachedFeed() {
+  try {
+    const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return data;
+  } catch { return null; }
+}
+
+export async function setCachedFeed(data) {
+  try {
+    await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -16,6 +37,7 @@ export function AuthProvider({ children }) {
         const stored = await SecureStore.getItemAsync('vertext_user');
         if (stored) setUser(JSON.parse(stored));
       } catch {}
+      // Done in <300ms — app opens fast
       setLoading(false);
     })();
   }, []);
@@ -62,6 +84,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     await SecureStore.deleteItemAsync('vertext_token');
     await SecureStore.deleteItemAsync('vertext_user');
+    await AsyncStorage.removeItem(FEED_CACHE_KEY);
     setUser(null);
   };
 

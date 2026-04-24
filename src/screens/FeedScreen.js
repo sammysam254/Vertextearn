@@ -1,227 +1,304 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, FlatList, Dimensions, StyleSheet,
-  TouchableWithoutFeedback, Text, TouchableOpacity,
-  Animated, Platform, ActivityIndicator, RefreshControl,
+  Text, TouchableOpacity, Animated, Platform,
+  RefreshControl, Image, Share,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, getCachedFeed, setCachedFeed } from '../context/AuthContext';
 import CommentsModal from '../components/CommentsModal';
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
 
 function fmt(n) {
-  if (!n) return '0';
+  if (!n && n !== 0) return '0';
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return `${n}`;
 }
 
-function VideoItem({ item, isActive, onLikeChange }) {
+// ── Red sweeping progress bar at very top ─────────────────────────────────
+function LoadingBar({ visible }) {
+  const x = useRef(new Animated.Value(-SCREEN_W)).current;
+  const anim = useRef(null);
+
+  useEffect(() => {
+    if (visible) {
+      x.setValue(-SCREEN_W);
+      anim.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(x, { toValue: SCREEN_W, duration: 900, useNativeDriver: true }),
+          Animated.timing(x, { toValue: -SCREEN_W, duration: 0, useNativeDriver: true }),
+        ])
+      );
+      anim.current.start();
+    } else {
+      anim.current?.stop();
+    }
+    return () => anim.current?.stop();
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={lb.track} pointerEvents="none">
+      <Animated.View style={[lb.bar, { transform: [{ translateX: x }] }]} />
+    </View>
+  );
+}
+
+const lb = StyleSheet.create({
+  track: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    height: 3, backgroundColor: 'transparent', zIndex: 999, overflow: 'hidden',
+  },
+  bar: {
+    width: SCREEN_W * 0.6, height: 3,
+    backgroundColor: '#fe2c55',
+    borderRadius: 2,
+    shadowColor: '#fe2c55', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9, shadowRadius: 6, elevation: 4,
+  },
+});
+
+// ── Video card ─────────────────────────────────────────────────────────────
+function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const videoRef = useRef(null);
-  const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [liked, setLiked] = useState(item.is_liked);
   const [saved, setSaved] = useState(item.is_saved);
   const [likes, setLikes] = useState(item.likes_count);
   const [saves, setSaves] = useState(item.saves_count);
+  const [views, setViews] = useState(item.views_count || 0);
   const [showComments, setShowComments] = useState(false);
   const [following, setFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [likeLoading, setLikeLoading] = useState(false);
-  const [saveLoading, setSaveLoading] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const viewCounted = useRef(false);
+  const viewTimer = useRef(null);
   const heartScale = useRef(new Animated.Value(0)).current;
-  const tapRef = useRef(null);
+  const pauseOpacity = useRef(new Animated.Value(0)).current;
+  const tapTimer = useRef(null);
   const { apiFetch } = useAuth();
 
+  // ── Control playback ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!videoRef.current) return;
     if (isActive) {
+      setPaused(false);
+      viewCounted.current = false;
       videoRef.current.playAsync().catch(() => {});
+      // Count view after 3 seconds of watching
+      viewTimer.current = setTimeout(async () => {
+        if (!viewCounted.current) {
+          viewCounted.current = true;
+          setViews(v => v + 1);
+          try { await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' }); } catch {}
+        }
+      }, 3000);
     } else {
+      clearTimeout(viewTimer.current);
       videoRef.current.pauseAsync().catch(() => {});
       videoRef.current.setPositionAsync(0).catch(() => {});
+      // Unload if not in preload window — free RAM
+      if (!shouldPreload) {
+        videoRef.current.unloadAsync().catch(() => {});
+      }
     }
-  }, [isActive]);
+    return () => clearTimeout(viewTimer.current);
+  }, [isActive, shouldPreload]);
 
-  const showHeart = () => {
-    Animated.sequence([
-      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true }),
-      Animated.delay(500),
-      Animated.timing(heartScale, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start();
+  const flashIcon = () => {
+    pauseOpacity.setValue(0.9);
+    Animated.timing(pauseOpacity, { toValue: 0, duration: 500, delay: 300, useNativeDriver: true }).start();
   };
 
-  const handleDoubleTap = async () => {
-    if (!liked && !likeLoading) {
-      setLiked(true);
-      setLikes(l => l + 1);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      try { await apiFetch(`/videos/${item.id}/like/`, { method: 'POST' }); } catch {}
-    }
-    showHeart();
-  };
-
+  // ── Tap handler — single=pause/play, double=like ─────────────────────────
   const handleTap = () => {
-    if (tapRef.current) {
-      clearTimeout(tapRef.current);
-      tapRef.current = null;
-      handleDoubleTap();
+    if (tapTimer.current) {
+      clearTimeout(tapTimer.current);
+      tapTimer.current = null;
+      // Double tap = like
+      if (!liked) {
+        setLiked(true);
+        setLikes(l => l + 1);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        apiFetch(`/videos/${item.id}/like/`, { method: 'POST' }).catch(() => {});
+        onRefresh?.();
+      }
+      heartScale.setValue(0);
+      Animated.sequence([
+        Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, speed: 22 }),
+        Animated.delay(500),
+        Animated.timing(heartScale, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start();
     } else {
-      tapRef.current = setTimeout(() => {
-        tapRef.current = null;
-        setMuted(m => !m);
-      }, 250);
+      tapTimer.current = setTimeout(() => {
+        tapTimer.current = null;
+        // Single tap = pause / resume
+        if (!videoRef.current) return;
+        if (paused) {
+          videoRef.current.playAsync().catch(() => {});
+          setPaused(false);
+        } else {
+          videoRef.current.pauseAsync().catch(() => {});
+          setPaused(true);
+        }
+        flashIcon();
+        Haptics.selectionAsync();
+      }, 230);
     }
   };
 
   const toggleLike = async () => {
-    if (likeLoading) return;
-    setLikeLoading(true);
-    const wasLiked = liked;
-    setLiked(!wasLiked);
-    setLikes(l => wasLiked ? l - 1 : l + 1);
+    const was = liked;
+    setLiked(!was); setLikes(l => was ? l - 1 : l + 1);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await apiFetch(`/videos/${item.id}/like/`, { method: 'POST' });
-      onLikeChange?.();
-    } catch {
-      setLiked(wasLiked);
-      setLikes(l => wasLiked ? l + 1 : l - 1);
-    }
-    setLikeLoading(false);
+    try { await apiFetch(`/videos/${item.id}/like/`, { method: 'POST' }); onRefresh?.(); }
+    catch { setLiked(was); setLikes(l => was ? l + 1 : l - 1); }
   };
 
   const toggleSave = async () => {
-    if (saveLoading) return;
-    setSaveLoading(true);
-    const wasSaved = saved;
-    setSaved(!wasSaved);
-    setSaves(s => wasSaved ? s - 1 : s + 1);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try { await apiFetch(`/videos/${item.id}/save/`, { method: 'POST' }); } catch {
-      setSaved(wasSaved);
-    }
-    setSaveLoading(false);
+    const was = saved;
+    setSaved(!was); setSaves(s => was ? s - 1 : s + 1);
+    try { await apiFetch(`/videos/${item.id}/save/`, { method: 'POST' }); }
+    catch { setSaved(was); }
   };
 
   const toggleFollow = async () => {
-    if (followLoading) return;
-    setFollowLoading(true);
     try {
-      await apiFetch(`/profile/${item.user.username}/follow/`, { method: 'POST' });
+      await apiFetch(`/profile/${item.user?.username}/follow/`, { method: 'POST' });
       setFollowing(f => !f);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
-    setFollowLoading(false);
   };
 
-  const videoUrl = item.video_url || item.video_file;
+  const handleShare = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        title: `@${item.user?.username} on Vertext`,
+        message: `Watch this on Vertext!\n\n"${item.caption}"\n— @${item.user?.username}\n\nhttps://vertext-backend-h1e0.onrender.com`,
+      });
+    } catch {}
+  };
+
+  const canShow = (isActive || shouldPreload) && !!item.video_url && !loadError;
 
   return (
-    <View style={styles.videoContainer}>
-      <TouchableWithoutFeedback onPress={handleTap}>
-        <View style={StyleSheet.absoluteFill}>
-          {videoUrl ? (
-            <Video
-              ref={videoRef}
-              source={{ uri: videoUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode={ResizeMode.COVER}
-              isLooping
-              isMuted={muted}
-              shouldPlay={false}
-              useNativeControls={false}
-            />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, styles.noVideo]}>
-              <Ionicons name="videocam-off" size={48} color="#555" />
-              <Text style={{ color: '#555', marginTop: 8 }}>Video unavailable</Text>
-            </View>
-          )}
-          <LinearGradient
-            colors={['transparent', 'transparent', 'rgba(0,0,0,0.85)']}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          {item.is_ad && (
-            <View style={styles.adBadge}>
-              <Text style={styles.adText}>SPONSORED</Text>
-            </View>
-          )}
-          {muted && (
-            <View style={styles.muteIcon}>
-              <Ionicons name="volume-mute" size={20} color="#fff" />
-            </View>
-          )}
-          <Animated.View
-            style={[styles.heartOverlay, { transform: [{ scale: heartScale }], opacity: heartScale }]}
-            pointerEvents="none"
-          >
-            <Text style={{ fontSize: 90 }}>❤️</Text>
-          </Animated.View>
-        </View>
-      </TouchableWithoutFeedback>
+    <View style={S.card}>
+      {/* Loading bar — slides across top while buffering */}
+      <LoadingBar visible={isActive && buffering && !paused && !loadError} />
 
-      {/* Bottom info */}
-      <View style={styles.bottomInfo} pointerEvents="box-none">
-        <View style={styles.userRow}>
-          <View style={styles.avatarCircle}>
+      {/* Video player */}
+      {canShow ? (
+        <ExpoVideo
+          ref={videoRef}
+          source={{ uri: item.video_url }}
+          style={StyleSheet.absoluteFill}
+          resizeMode={ResizeMode.COVER}
+          isLooping
+          isMuted={false}
+          shouldPlay={isActive && !paused}
+          useNativeControls={false}
+          progressUpdateIntervalMillis={250}
+          onLoadStart={() => setBuffering(true)}
+          onLoad={() => setBuffering(false)}
+          onReadyForDisplay={() => setBuffering(false)}
+          onPlaybackStatusUpdate={s => setBuffering(!!s.isBuffering)}
+          onError={() => { setLoadError(true); setBuffering(false); }}
+        />
+      ) : (
+        <View style={S.noVideo}>
+          {item.thumbnail_url
+            ? <Image source={{ uri: item.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            : <View style={{ flex: 1, backgroundColor: '#0a0a0a' }} />
+          }
+          {loadError && (
+            <View style={S.errBox}>
+              <Ionicons name="warning-outline" size={26} color="#fe2c55" />
+              <Text style={S.errText}>Video failed to load</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Full-screen tap zone */}
+      <View style={StyleSheet.absoluteFill}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={handleTap}
+      />
+
+      {/* Pause/play flash icon */}
+      <Animated.View style={[S.pauseWrap, { opacity: pauseOpacity }]} pointerEvents="none">
+        <View style={S.pauseCircle}>
+          <Ionicons name={paused ? 'pause' : 'play'} size={44} color="#fff" />
+        </View>
+      </Animated.View>
+
+      {/* Like heart animation */}
+      <Animated.View style={[S.heart, { transform: [{ scale: heartScale }], opacity: heartScale }]} pointerEvents="none">
+        <Text style={{ fontSize: 85 }}>❤️</Text>
+      </Animated.View>
+
+      {/* Dark gradient */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.2)', 'transparent', 'transparent', 'rgba(0,0,0,0.9)']}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      {/* Ad label */}
+      {item.is_ad && (
+        <View style={S.adBadge} pointerEvents="none">
+          <Text style={S.adText}>SPONSORED</Text>
+        </View>
+      )}
+
+      {/* Bottom: user + caption + views */}
+      <View style={S.bottom} pointerEvents="box-none">
+        <View style={S.userRow}>
+          <View style={S.avatar}>
             {item.user?.avatar
-              ? <Image source={{ uri: item.user.avatar }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-              : <Text style={styles.avatarLetter}>{item.user?.username?.[0]?.toUpperCase()}</Text>
+              ? <Image source={{ uri: item.user.avatar }} style={S.avatarImg} />
+              : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
             }
           </View>
-          <Text style={styles.username}>@{item.user?.username}</Text>
-          {item.user?.is_verified && <Text style={styles.verified}>✓</Text>}
-          <TouchableOpacity
-            style={[styles.followBtn, following && styles.followingBtn]}
-            onPress={toggleFollow}
-            disabled={followLoading}
-          >
-            {followLoading
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={styles.followText}>{following ? 'Following' : 'Follow'}</Text>
-            }
+          <Text style={S.username}>@{item.user?.username}</Text>
+          {item.user?.is_verified && <Text style={S.tick}>✓</Text>}
+          <TouchableOpacity style={[S.followBtn, following && S.followingBtn]} onPress={toggleFollow}>
+            <Text style={S.followTxt}>{following ? 'Following' : 'Follow'}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.caption} numberOfLines={3}>{item.caption}</Text>
+        {!!item.caption && <Text style={S.caption} numberOfLines={3}>{item.caption}</Text>}
+        <View style={S.viewsRow}>
+          <Ionicons name="eye-outline" size={13} color="rgba(255,255,255,0.7)" />
+          <Text style={S.viewsTxt}>{fmt(views)} views</Text>
+        </View>
       </View>
 
       {/* Right actions */}
-      <View style={styles.actions} pointerEvents="box-none">
-        <TouchableOpacity style={styles.actionBtn} onPress={toggleLike} disabled={likeLoading}>
-          {likeLoading
-            ? <ActivityIndicator color={liked ? '#fe2c55' : '#fff'} size={28} />
-            : <Ionicons name={liked ? 'heart' : 'heart-outline'} size={34} color={liked ? '#fe2c55' : '#fff'} />
-          }
-          <Text style={styles.actionLabel}>{fmt(likes)}</Text>
+      <View style={S.actions} pointerEvents="box-none">
+        <TouchableOpacity style={S.btn} onPress={toggleLike}>
+          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={33} color={liked ? '#fe2c55' : '#fff'} />
+          <Text style={S.btnLbl}>{fmt(likes)}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionBtn} onPress={() => setShowComments(true)}>
-          <Ionicons name="chatbubble-ellipses-outline" size={32} color="#fff" />
-          <Text style={styles.actionLabel}>{fmt(item.comments_count)}</Text>
+        <TouchableOpacity style={S.btn} onPress={() => setShowComments(true)}>
+          <Ionicons name="chatbubble-ellipses-outline" size={31} color="#fff" />
+          <Text style={S.btnLbl}>{fmt(item.comments_count)}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionBtn}>
-          <Ionicons name="share-social-outline" size={32} color="#fff" />
-          <Text style={styles.actionLabel}>{fmt(item.shares_count)}</Text>
+        <TouchableOpacity style={S.btn} onPress={handleShare}>
+          <Ionicons name="share-social-outline" size={31} color="#fff" />
+          <Text style={S.btnLbl}>{fmt(item.shares_count)}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionBtn} onPress={toggleSave} disabled={saveLoading}>
-          {saveLoading
-            ? <ActivityIndicator color={saved ? '#ffd700' : '#fff'} size={28} />
-            : <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={30} color={saved ? '#ffd700' : '#fff'} />
-          }
-          <Text style={styles.actionLabel}>{fmt(saves)}</Text>
+        <TouchableOpacity style={S.btn} onPress={toggleSave}>
+          <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={29} color={saved ? '#ffd700' : '#fff'} />
+          <Text style={S.btnLbl}>{fmt(saves)}</Text>
         </TouchableOpacity>
-
-        <View style={styles.discWrap}>
-          <View style={styles.disc}>
-            <Text style={{ fontSize: 18 }}>🎵</Text>
-          </View>
-        </View>
+        <View style={S.disc}><Text style={{ fontSize: 17 }}>🎵</Text></View>
       </View>
 
       <CommentsModal visible={showComments} onClose={() => setShowComments(false)} videoId={item.id} />
@@ -229,27 +306,53 @@ function VideoItem({ item, isActive, onLikeChange }) {
   );
 }
 
+// ── Main feed screen ───────────────────────────────────────────────────────
 export default function FeedScreen() {
   const [videos, setVideos] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [tab, setTab] = useState('foryou');
-  const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchingFresh, setFetchingFresh] = useState(false);
   const [error, setError] = useState('');
   const { apiFetch } = useAuth();
 
   const loadFeed = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
     setError('');
+
+    // ── Step 1: Show cached data instantly (< 100ms) ──────────────────────
+    if (!isRefresh) {
+      const cached = await getCachedFeed();
+      if (cached && cached.length > 0) {
+        setVideos(cached);
+        setInitialLoad(false);
+        // Now fetch fresh in background without blocking UI
+        setFetchingFresh(true);
+        try {
+          const fresh = await apiFetch('/feed/');
+          const data = Array.isArray(fresh) ? fresh : (fresh.results || []);
+          setVideos(data);
+          await setCachedFeed(data);
+        } catch {}
+        setFetchingFresh(false);
+        return;
+      }
+    }
+
+    // ── Step 2: No cache — fetch with loading state ───────────────────────
+    if (isRefresh) setRefreshing(true);
+    else setInitialLoad(true);
+
     try {
       const endpoint = tab === 'foryou' ? '/feed/' : '/feed/following/';
       const data = await apiFetch(endpoint);
-      setVideos(Array.isArray(data) ? data : (data.results || []));
-    } catch (e) {
-      setError('Failed to load videos. Pull down to retry.');
+      const arr = Array.isArray(data) ? data : (data.results || []);
+      setVideos(arr);
+      await setCachedFeed(arr);
+    } catch {
+      if (videos.length === 0) setError('Could not load videos. Pull to retry.');
     } finally {
-      setLoading(false);
+      setInitialLoad(false);
       setRefreshing(false);
     }
   }, [tab]);
@@ -260,42 +363,50 @@ export default function FeedScreen() {
     if (viewableItems.length > 0) setActiveIdx(viewableItems[0].index ?? 0);
   }, []);
 
-  const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
+  const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 55 }).current;
 
-  if (loading) return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color="#fe2c55" />
-      <Text style={{ color: '#666', marginTop: 12 }}>Loading videos...</Text>
+  // ── Startup loading screen — shows red bar at top, no spinner ─────────────
+  if (initialLoad) return (
+    <View style={S.center}>
+      <LoadingBar visible={true} />
+      <View style={S.logoWrap}>
+        <Text style={S.logoV}>V</Text>
+        <Text style={S.logoTxt}>Vertext</Text>
+      </View>
     </View>
   );
 
-  if (error) return (
-    <View style={styles.center}>
-      <Ionicons name="wifi-outline" size={48} color="#555" />
-      <Text style={{ color: '#666', marginTop: 12, textAlign: 'center', paddingHorizontal: 32 }}>{error}</Text>
-      <TouchableOpacity style={styles.retryBtn} onPress={() => loadFeed()}>
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+  if (error && videos.length === 0) return (
+    <View style={S.center}>
+      <Ionicons name="wifi-outline" size={50} color="#333" />
+      <Text style={{ color: '#555', marginTop: 14, textAlign: 'center', paddingHorizontal: 40 }}>{error}</Text>
+      <TouchableOpacity style={S.retryBtn} onPress={() => loadFeed()}>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>Try Again</Text>
       </TouchableOpacity>
     </View>
   );
 
-  if (videos.length === 0) return (
-    <View style={styles.center}>
-      <Ionicons name="videocam-outline" size={64} color="#333" />
-      <Text style={{ color: '#555', marginTop: 16, fontSize: 16 }}>No videos yet</Text>
-      <Text style={{ color: '#444', marginTop: 6, fontSize: 13 }}>Be the first to upload!</Text>
+  if (!initialLoad && videos.length === 0) return (
+    <View style={S.center}>
+      <Ionicons name="videocam-outline" size={64} color="#222" />
+      <Text style={{ color: '#444', marginTop: 16, fontSize: 16, fontWeight: '700' }}>No Videos Yet</Text>
+      <Text style={{ color: '#333', marginTop: 6, fontSize: 13 }}>Be the first to upload!</Text>
     </View>
   );
 
   return (
-    <View style={styles.root}>
-      <View style={styles.tabs} pointerEvents="box-none">
+    <View style={S.root}>
+      {/* Background refresh indicator — subtle red bar at top */}
+      <LoadingBar visible={fetchingFresh || refreshing} />
+
+      {/* Tab bar */}
+      <View style={S.tabs} pointerEvents="box-none">
         {['following', 'foryou'].map(t => (
-          <TouchableOpacity key={t} onPress={() => setTab(t)} style={styles.tabBtn}>
-            <Text style={[styles.tabText, tab === t && styles.tabActive]}>
+          <TouchableOpacity key={t} onPress={() => setTab(t)} style={S.tabBtn}>
+            <Text style={[S.tabTxt, tab === t && S.tabActive]}>
               {t === 'foryou' ? 'For You' : 'Following'}
             </Text>
-            {tab === t && <View style={styles.tabUnderline} />}
+            {tab === t && <View style={S.tabLine} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -308,7 +419,8 @@ export default function FeedScreen() {
             item={item}
             index={index}
             isActive={index === activeIdx}
-            onLikeChange={loadFeed}
+            shouldPreload={index > activeIdx && index <= activeIdx + 5}
+            onRefresh={loadFeed}
           />
         )}
         pagingEnabled
@@ -319,47 +431,53 @@ export default function FeedScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewConfig}
         getItemLayout={(_, i) => ({ length: SCREEN_H, offset: SCREEN_H * i, index: i })}
-        windowSize={5}
+        windowSize={13}
         maxToRenderPerBatch={3}
-        initialNumToRender={2}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadFeed(true)} tintColor="#fe2c55" />}
+        initialNumToRender={1}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadFeed(true)} tintColor="#fe2c55" />
+        }
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const S = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  videoContainer: { width: SCREEN_W, height: SCREEN_H, backgroundColor: '#000' },
+  card: { width: SCREEN_W, height: SCREEN_H, backgroundColor: '#000', overflow: 'hidden' },
   center: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  noVideo: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' },
-  tabs: {
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
-    flexDirection: 'row', justifyContent: 'center', gap: 32,
-    paddingTop: Platform.OS === 'android' ? 40 : 60, paddingBottom: 12,
-  },
-  tabBtn: { alignItems: 'center' },
-  tabText: { color: 'rgba(255,255,255,0.5)', fontSize: 16, fontWeight: '700' },
-  tabActive: { color: '#fff' },
-  tabUnderline: { height: 2, width: 20, backgroundColor: '#fff', marginTop: 2, borderRadius: 1 },
-  adBadge: { position: 'absolute', top: 80, left: 12, backgroundColor: 'rgba(254,44,85,0.9)', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  adText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  muteIcon: { position: 'absolute', top: 80, right: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
-  heartOverlay: { position: 'absolute', top: '35%', left: '30%', justifyContent: 'center', alignItems: 'center' },
-  bottomInfo: { position: 'absolute', bottom: 70, left: 0, right: 80, padding: 16 },
-  userRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 },
-  avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fe2c55', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', overflow: 'hidden' },
+  logoWrap: { alignItems: 'center' },
+  logoV: { fontSize: 56, fontWeight: '900', color: '#fe2c55' },
+  logoTxt: { fontSize: 22, fontWeight: '700', color: '#fff', marginTop: -8, letterSpacing: 2 },
+  noVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
+  errBox: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', padding: 18, borderRadius: 12 },
+  errText: { color: '#fe2c55', marginTop: 7, fontSize: 13 },
+  pauseWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  pauseCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
+  heart: { position: 'absolute', top: '30%', left: '26%' },
+  adBadge: { position: 'absolute', top: 88, left: 12, backgroundColor: 'rgba(254,44,85,0.92)', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
+  adText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  bottom: { position: 'absolute', bottom: 68, left: 0, right: 84, padding: 14 },
+  userRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 7, flexWrap: 'wrap', gap: 6 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fe2c55', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', overflow: 'hidden' },
+  avatarImg: { width: 44, height: 44, borderRadius: 22 },
   avatarLetter: { color: '#fff', fontWeight: '900', fontSize: 18 },
   username: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  verified: { color: '#20d5ec', fontSize: 14 },
-  followBtn: { borderWidth: 1.5, borderColor: '#fff', borderRadius: 4, paddingHorizontal: 12, paddingVertical: 4, minWidth: 70, alignItems: 'center' },
-  followingBtn: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  followText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  caption: { color: '#fff', fontSize: 14, lineHeight: 20 },
-  actions: { position: 'absolute', right: 8, bottom: 80, alignItems: 'center', gap: 20 },
-  actionBtn: { alignItems: 'center', gap: 3, minHeight: 44 },
-  actionLabel: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  discWrap: { marginTop: 4, alignItems: 'center' },
-  disc: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#222', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
-  retryBtn: { marginTop: 20, backgroundColor: '#fe2c55', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 8 },
+  tick: { color: '#20d5ec', fontSize: 14 },
+  followBtn: { borderWidth: 1.5, borderColor: '#fff', borderRadius: 5, paddingHorizontal: 12, paddingVertical: 4 },
+  followingBtn: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  followTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  caption: { color: '#fff', fontSize: 14, lineHeight: 20, marginBottom: 6 },
+  viewsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  viewsTxt: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+  actions: { position: 'absolute', right: 6, bottom: 76, alignItems: 'center', gap: 16 },
+  btn: { alignItems: 'center', gap: 3, minWidth: 46, minHeight: 46, justifyContent: 'center' },
+  btnLbl: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  disc: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', marginTop: 2 },
+  tabs: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, flexDirection: 'row', justifyContent: 'center', gap: 32, paddingTop: Platform.OS === 'android' ? 44 : 62, paddingBottom: 10 },
+  tabBtn: { alignItems: 'center' },
+  tabTxt: { color: 'rgba(255,255,255,0.5)', fontSize: 16, fontWeight: '700' },
+  tabActive: { color: '#fff' },
+  tabLine: { height: 2, width: 22, backgroundColor: '#fff', marginTop: 3, borderRadius: 1 },
+  retryBtn: { marginTop: 22, backgroundColor: '#fe2c55', paddingHorizontal: 34, paddingVertical: 13, borderRadius: 10 },
 });
