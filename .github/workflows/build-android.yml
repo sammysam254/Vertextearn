@@ -36,6 +36,9 @@ jobs:
         env:
           EXPO_NO_GIT_STATUS: 1
 
+      - name: Reinstall dependencies after prebuild
+        run: npm install --legacy-peer-deps
+
       - name: Make Gradlew executable
         run: chmod +x android/gradlew
 
