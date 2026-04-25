@@ -487,7 +487,16 @@ function LiveMode() {
   // ── Active live stream UI ──
   return (
     <View style={{ flex:1, backgroundColor:'#000' }}>
-      <CameraView style={{ flex:1 }} facing={facing}>
+      <CameraView
+        style={{ flex:1 }}
+        facing={facing}
+        mode="video"
+        onCameraReady={() => {}}
+        onMountError={(e) => {
+          Alert.alert('Camera Error', 'Could not start camera: ' + (e?.message || 'Unknown error'));
+          setIsLive(false);
+        }}
+      >
         <View style={[StyleSheet.absoluteFill, { backgroundColor:'rgba(0,0,0,0.2)' }]} pointerEvents="none" />
 
         {/* Top bar */}
