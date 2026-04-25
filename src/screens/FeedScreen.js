@@ -74,7 +74,8 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const [saves, setSaves] = useState(item.saves_count);
   const [views, setViews] = useState(item.views_count || 0);
   const [showComments, setShowComments] = useState(false);
-  const [following, setFollowing] = useState(false);
+  const [following, setFollowing] = useState(item.user?.is_followed || false);
+  const [deleted, setDeleted] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const viewCounted = useRef(false);
@@ -82,31 +83,33 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const heartScale = useRef(new Animated.Value(0)).current;
   const pauseOpacity = useRef(new Animated.Value(0)).current;
   const tapTimer = useRef(null);
-  const { apiFetch } = useAuth();
+  const { apiFetch, user: authUser, guardDemo } = useAuth();
 
   // ── Control playback ──────────────────────────────────────────────────────
+  // viewCounted resets only once per video mount, not per active change
+  useEffect(() => { viewCounted.current = false; }, [item.id]);
+
   useEffect(() => {
     if (!videoRef.current) return;
     if (isActive) {
       setPaused(false);
-      viewCounted.current = false;
       videoRef.current.playAsync().catch(() => {});
-      // Count view after 3 seconds of watching
-      viewTimer.current = setTimeout(async () => {
-        if (!viewCounted.current) {
-          viewCounted.current = true;
-          try {
-            const res = await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' });
-            // Only increment UI counter if backend says it's a new view
-            if (res?.counted) setViews(v => v + 1);
-          } catch {}
-        }
-      }, 5000);
+      // Count view after 5 seconds - only once per session
+      if (!viewCounted.current) {
+        viewTimer.current = setTimeout(async () => {
+          if (!viewCounted.current) {
+            viewCounted.current = true;
+            try {
+              const res = await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' });
+              if (res?.counted) setViews(v => v + 1);
+            } catch {}
+          }
+        }, 5000);
+      }
     } else {
       clearTimeout(viewTimer.current);
       videoRef.current.pauseAsync().catch(() => {});
       videoRef.current.setPositionAsync(0).catch(() => {});
-      // Unload if not in preload window — free RAM
       if (!shouldPreload) {
         videoRef.current.unloadAsync().catch(() => {});
       }
@@ -173,6 +176,21 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
     catch { setSaved(was); }
   };
 
+  const deleteVideo = async () => {
+    const { Alert } = require('react-native');
+    Alert.alert('Delete Video', 'Are you sure you want to delete this video?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await apiFetch(`/videos/${item.id}/delete/`, { method: 'DELETE' });
+          setDeleted(true);
+        } catch (e) {
+          Alert.alert('Error', 'Could not delete video');
+        }
+      }},
+    ]);
+  };
+
   const toggleFollow = async () => {
     if (guardDemo('follow creators')) return;
     try {
@@ -193,6 +211,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   };
 
   const canShow = (isActive || shouldPreload) && !!item.video_url && !loadError;
+  if (deleted) return null;
 
   return (
     <View style={S.card}>
@@ -325,7 +344,7 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fetchingFresh, setFetchingFresh] = useState(false);
   const [error, setError] = useState('');
-  const { apiFetch } = useAuth();
+  const { apiFetch, user: authUser, guardDemo } = useAuth();
 
   const loadFeed = useCallback(async (isRefresh = false) => {
     setError('');
