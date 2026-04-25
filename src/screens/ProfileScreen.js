@@ -141,11 +141,7 @@ export default function ProfileScreen({ route }) {
 
   return (
     <View style={styles.root}>
-      {isDemo?.() && (
-        <View style={styles.demoBanner}>
-          <Text style={styles.demaBannerText}>👀 Demo Mode — Sign up to unlock all features</Text>
-        </View>
-      )}
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor="#fe2c55" />}
