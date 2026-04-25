@@ -220,13 +220,28 @@ function CameraMode({ navigation }) {
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
+  // Auto-request permissions on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        if (camPerm && !camPerm.granted && camPerm.canAskAgain) await requestCam();
+        if (micPerm && !micPerm.granted && micPerm.canAskAgain) await requestMic();
+      } catch(e) {}
+    })();
+  }, []);
+
   if (!camPerm || !micPerm) return <View style={styles.permWrap}><ActivityIndicator color="#fe2c55" /></View>;
 
   if (!camPerm.granted || !micPerm.granted) return (
     <View style={styles.permWrap}>
       <Ionicons name="camera-off-outline" size={56} color="#555" />
       <Text style={styles.permText}>Camera & microphone access needed</Text>
-      <TouchableOpacity style={styles.permBtn} onPress={async () => { await requestCam(); await requestMic(); }}>
+      <Text style={{ color: '#555', fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 16, paddingHorizontal: 24 }}>
+        Go to Settings → Apps → Vertext → Permissions and enable Camera and Microphone
+      </Text>
+      <TouchableOpacity style={styles.permBtn} onPress={async () => {
+        try { await requestCam(); await requestMic(); } catch(e) {}
+      }}>
         <Text style={styles.permBtnText}>Grant Permission</Text>
       </TouchableOpacity>
     </View>
@@ -281,7 +296,16 @@ function CameraMode({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} mode="video">
+      <CameraView
+        ref={cameraRef}
+        style={{ flex: 1 }}
+        facing={facing}
+        mode="video"
+        onCameraReady={() => {}}
+        onMountError={(e) => {
+          Alert.alert('Camera Error', 'Could not start camera. Please check permissions and try again.');
+        }}
+      >
         {filter.tint && (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: filter.tint }]} pointerEvents="none" />
         )}
@@ -426,11 +450,26 @@ function LiveMode() {
 
   const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
+  // Auto-request permissions on mount for live
+  useEffect(() => {
+    (async () => {
+      try {
+        if (camPerm && !camPerm.granted && camPerm.canAskAgain) await requestCam();
+        if (micPerm && !micPerm.granted && micPerm.canAskAgain) await requestMic();
+      } catch(e) {}
+    })();
+  }, []);
+
   if (!camPerm?.granted || !micPerm?.granted) return (
     <View style={styles.permWrap}>
       <Ionicons name="radio-outline" size={56} color="#555" />
       <Text style={styles.permText}>Camera & microphone needed for live</Text>
-      <TouchableOpacity style={styles.permBtn} onPress={async () => { await requestCam(); await requestMic(); }}>
+      <Text style={{ color: '#555', fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 16, paddingHorizontal: 24 }}>
+        Go to Settings → Apps → Vertext → Permissions and enable Camera and Microphone
+      </Text>
+      <TouchableOpacity style={styles.permBtn} onPress={async () => {
+        try { await requestCam(); await requestMic(); } catch(e) {}
+      }}>
         <Text style={styles.permBtnText}>Grant Permission</Text>
       </TouchableOpacity>
     </View>
