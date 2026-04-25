@@ -272,7 +272,9 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           </View>
           <Text style={S.username}>@{item.user?.username}</Text>
           {item.user?.is_verified && (
-            <Text style={[S.tick, item.user?.verification_type === 'blue' && S.tickBlue]}>✓</Text>
+            <View style={[S.badgeWrap, item.user?.verification_type === 'blue' ? S.badgeBlue : S.badgeBlack]}>
+              <Text style={S.badgeTick}>✓</Text>
+            </View>
           )}
           <TouchableOpacity style={[S.followBtn, following && S.followingBtn]} onPress={toggleFollow}>
             <Text style={S.followTxt}>{following ? 'Following' : 'Follow'}</Text>
@@ -468,8 +470,10 @@ const S = StyleSheet.create({
   avatarImg: { width: 44, height: 44, borderRadius: 22 },
   avatarLetter: { color: '#fff', fontWeight: '900', fontSize: 18 },
   username: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  tick: { color: '#000', fontSize: 14, backgroundColor: '#aaa', borderRadius: 8, paddingHorizontal: 3 },
-  tickBlue: { color: '#fff', backgroundColor: '#1d9bf0' },
+  badgeWrap: { width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', marginLeft: 3 },
+  badgeBlue: { backgroundColor: '#1d9bf0' },
+  badgeBlack: { backgroundColor: '#333', borderWidth: 1, borderColor: '#888' },
+  badgeTick: { color: '#fff', fontSize: 10, fontWeight: '900', lineHeight: 13 },
   followBtn: { borderWidth: 1.5, borderColor: '#fff', borderRadius: 5, paddingHorizontal: 12, paddingVertical: 4 },
   followingBtn: { backgroundColor: 'rgba(255,255,255,0.18)' },
   followTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
