@@ -321,6 +321,14 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
         </TouchableOpacity>
         <TouchableOpacity style={S.btn} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={31} color="#fff" />
+        </TouchableOpacity>
+        {item.user?.id === authUser?.id && (
+          <TouchableOpacity style={S.btn} onPress={deleteVideo}>
+            <Ionicons name="trash-outline" size={28} color="#ff4444" />
+            <Text style={{color:'#ff4444', fontSize:11, marginTop:2}}>Delete</Text>
+          </TouchableOpacity>
+        )}
+        <View style={{display:'none'}}>
           <Text style={S.btnLbl}>{fmt(item.shares_count)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={S.btn} onPress={toggleSave}>
