@@ -204,79 +204,47 @@ function UploadMode({ navigation }) {
 
 // ── Camera + Filters mode ─────────────────────────────────────────────────────
 function CameraMode({ navigation }) {
-  const [camPerm, requestCam] = useCameraPermissions();
-  const [micPerm, requestMic] = useMicrophonePermissions();
-  const [facing, setFacing]     = useState('front');
-  const [recording, setRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState(null);
-  const [filter, setFilter]     = useState(FILTERS[0]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [elapsed, setElapsed]   = useState(0);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const cameraRef = useRef(null);
-  const timerRef  = useRef(null);
   const { getToken, API_URL } = useAuth();
 
-  useEffect(() => () => clearInterval(timerRef.current), []);
-
-  // Auto-request permissions on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        if (camPerm && !camPerm.granted && camPerm.canAskAgain) await requestCam();
-        if (micPerm && !micPerm.granted && micPerm.canAskAgain) await requestMic();
-      } catch(e) {}
-    })();
-  }, []);
-
-  if (!camPerm || !micPerm) return <View style={styles.permWrap}><ActivityIndicator color="#fe2c55" /></View>;
-
-  if (!camPerm.granted || !micPerm.granted) return (
-    <View style={styles.permWrap}>
-      <Ionicons name="camera-off-outline" size={56} color="#555" />
-      <Text style={styles.permText}>Camera & microphone access needed</Text>
-      <Text style={{ color: '#555', fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 16, paddingHorizontal: 24 }}>
-        Go to Settings → Apps → Vertext → Permissions and enable Camera and Microphone
-      </Text>
-      <TouchableOpacity style={styles.permBtn} onPress={async () => {
-        try { await requestCam(); await requestMic(); } catch(e) {}
-      }}>
-        <Text style={styles.permBtnText}>Grant Permission</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const startRec = async () => {
-    if (!cameraRef.current) return;
-    setRecording(true); setElapsed(0);
-    timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+  const openCamera = async () => {
     try {
-      const video = await cameraRef.current.recordAsync({ maxDuration: 60 });
-      setRecordedUri(video.uri);
-    } catch(e) { console.log(e); }
-    clearInterval(timerRef.current);
-    setRecording(false);
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please allow camera access in Settings → Apps → Vertext → Permissions');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        videoMaxDuration: 60,
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        setRecordedUri(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert('Camera Error', 'Could not open camera: ' + e.message);
+    }
   };
-
-  const stopRec = () => cameraRef.current?.stopRecording();
 
   const post = async (caption, visibility) => {
     if (!caption) { Alert.alert('Add a caption'); return; }
     setUploading(true); setProgress(0);
     try {
       const token = await getToken();
-      const form  = new FormData();
+      const form = new FormData();
       form.append('video_file', { uri: recordedUri, type: 'video/mp4', name: 'camera_video.mp4' });
       form.append('caption', caption);
       form.append('visibility', visibility);
-      form.append('filter', filter.id);
       const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded/e.total*100)); };
+      xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); };
       await new Promise((res, rej) => {
         xhr.open('POST', `${API_URL}/videos/upload/`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => (xhr.status===201||xhr.status===200) ? res() : rej(new Error(`Server error ${xhr.status}`));
+        xhr.onload = () => (xhr.status === 201 || xhr.status === 200) ? res() : rej(new Error(`Server error ${xhr.status}`));
         xhr.onerror = () => rej(new Error('Network error'));
         xhr.send(form);
       });
@@ -284,92 +252,33 @@ function CameraMode({ navigation }) {
         { text: 'View Feed', onPress: () => navigation?.navigate('Feed') }
       ]);
       setRecordedUri(null); setProgress(0);
-    } catch(e) { Alert.alert('Upload failed', e.message); }
+    } catch (e) { Alert.alert('Upload failed', e.message); }
     finally { setUploading(false); }
   };
 
-  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-
   if (recordedUri) return (
-    <PostForm label={`Recorded · ${filter.label} filter`} onPost={post} uploading={uploading} progress={progress} />
+    <PostForm label="Recorded video" onPost={post} uploading={uploading} progress={progress} />
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <CameraView
-        ref={cameraRef}
-        style={{ flex: 1 }}
-        facing={facing}
-        mode="video"
-        onCameraReady={() => {}}
-        onMountError={(e) => {
-          Alert.alert('Camera Error', 'Could not start camera. Please check permissions and try again.');
-        }}
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+      <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
+        <Ionicons name="videocam" size={48} color="#fe2c55" />
+      </View>
+      <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900', marginBottom: 8 }}>Record a Video</Text>
+      <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 40, lineHeight: 20 }}>
+        Open your camera to record up to 60 seconds of video
+      </Text>
+      <TouchableOpacity
+        style={{ backgroundColor: '#fe2c55', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 40, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        onPress={openCamera}
       >
-        {filter.tint && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: filter.tint }]} pointerEvents="none" />
-        )}
-
-        {/* Top controls */}
-        <View style={styles.camTopBar}>
-          <TouchableOpacity onPress={() => setFacing(f => f==='front'?'back':'front')} style={styles.camIconBtn}>
-            <Ionicons name="camera-reverse-outline" size={26} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.camIconBtn}>
-            <MaterialCommunityIcons name="palette-outline" size={24} color="#fff" />
-            <Text style={styles.filterBadge}>{filter.label}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Timer */}
-        {recording && (
-          <View style={styles.timerBadge}>
-            <View style={styles.recDot} />
-            <Text style={styles.timerText}>{fmt(elapsed)}</Text>
-          </View>
-        )}
-
-        {/* Record button */}
-        <View style={styles.camBottom}>
-          <TouchableOpacity
-            onPress={recording ? stopRec : startRec}
-            style={[styles.recBtn, recording && styles.recBtnActive]}
-          >
-            {recording
-              ? <View style={styles.recSquare} />
-              : <View style={styles.recCircle} />
-            }
-          </TouchableOpacity>
-          <Text style={styles.recHint}>{recording ? 'Tap to stop' : 'Tap to record · max 60s'}</Text>
-        </View>
-      </CameraView>
-
-      {/* Filter modal */}
-      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
-        <View style={styles.filterModalWrap}>
-          <View style={styles.filterSheet}>
-            <Text style={styles.filterSheetTitle}>Choose Filter</Text>
-            <FlatList
-              data={FILTERS}
-              keyExtractor={i => i.id}
-              numColumns={4}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.filterItem, filter.id===item.id && styles.filterItemActive]}
-                  onPress={() => { setFilter(item); setShowFilters(false); }}
-                >
-                  <View style={[styles.filterSwatch, { backgroundColor: item.tint || '#222' }]} />
-                  <Text style={[styles.filterLabel, filter.id===item.id && { color:'#fe2c55' }]}>{item.label}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.filterCloseBtn} onPress={() => setShowFilters(false)}>
-              <Text style={{ color:'#fff', fontWeight:'700' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        <Ionicons name="camera" size={22} color="#fff" />
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>Open Camera</Text>
+      </TouchableOpacity>
+      <Text style={{ color: '#444', fontSize: 12, textAlign: 'center', marginTop: 24 }}>
+        Max 60 seconds · MP4 format
+      </Text>
     </View>
   );
 }
@@ -619,8 +528,8 @@ export default function UploadScreen({ navigation }) {
 
       <View style={{ flex:1 }}>
         {mode === 'upload' && <UploadMode navigation={navigation} />}
-        {mode === 'camera' && <CameraMode navigation={navigation} />}
-        {mode === 'live'   && <LiveMode />}
+        {mode === 'camera' && <CameraErrorBoundary><CameraMode navigation={navigation} /></CameraErrorBoundary>}
+        {mode === 'live'   && <CameraErrorBoundary><LiveMode /></CameraErrorBoundary>}
       </View>
     </View>
   );
