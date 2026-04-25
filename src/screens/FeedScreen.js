@@ -328,7 +328,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
             <Text style={{color:'#ff4444', fontSize:11, marginTop:2}}>Delete</Text>
           </TouchableOpacity>
         )}
-        <View style={{display:'none'}}>
+        <TouchableOpacity style={S.btn} onPress={handleShare}>
           <Text style={S.btnLbl}>{fmt(item.shares_count)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={S.btn} onPress={toggleSave}>
