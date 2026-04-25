@@ -157,6 +157,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   };
 
   const toggleLike = async () => {
+    if (guardDemo('like videos')) return;
     const was = liked;
     setLiked(!was); setLikes(l => was ? l - 1 : l + 1);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -165,6 +166,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   };
 
   const toggleSave = async () => {
+    if (guardDemo('save videos')) return;
     const was = saved;
     setSaved(!was); setSaves(s => was ? s - 1 : s + 1);
     try { await apiFetch(`/videos/${item.id}/save/`, { method: 'POST' }); }
@@ -172,6 +174,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   };
 
   const toggleFollow = async () => {
+    if (guardDemo('follow creators')) return;
     try {
       await apiFetch(`/profile/u/${item.user?.username}/follow/`, { method: 'POST' });
       setFollowing(f => !f);

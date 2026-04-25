@@ -107,8 +107,23 @@ export function AuthProvider({ children }) {
     } catch {}
   };
 
+  const isDemo = () => user?.username === 'demo';
+
+  const guardDemo = (action, message = 'Create your own account to do this!') => {
+    if (user?.username === 'demo') {
+      const { Alert } = require('react-native');
+      Alert.alert(
+        '👀 Demo Account',
+        message + '\n\nSign up free to unlock all features!',
+        [{ text: 'OK' }]
+      );
+      return true;
+    }
+    return false;
+  };
+
   return (
-    <AuthCtx.Provider value={{ user, setUser, login, register, logout, apiFetch, loading, getToken, refreshUser, API_URL }}>
+    <AuthCtx.Provider value={{ user, setUser, login, register, logout, apiFetch, loading, getToken, refreshUser, API_URL, isDemo, guardDemo }}>
       {children}
     </AuthCtx.Provider>
   );

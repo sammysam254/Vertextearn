@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
 import FeedScreen from '../screens/FeedScreen';
 import SearchScreen from '../screens/SearchScreen';
@@ -31,6 +32,7 @@ function ProfileStack() {
 }
 
 export default function AppNavigator() {
+  const { guardDemo } = useAuth();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -61,7 +63,10 @@ export default function AppNavigator() {
           title: '',
           tabBarIcon: () => null,
           tabBarButton: (props) => (
-            <UploadButton onPress={() => navigation.navigate('Upload')} />
+            <UploadButton onPress={() => {
+              if (guardDemo('upload videos', 'Create your own account to start uploading and earning!')) return;
+              navigation.navigate('Upload');
+            }} />
           ),
         })}
       />

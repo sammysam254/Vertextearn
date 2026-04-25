@@ -141,6 +141,11 @@ export default function ProfileScreen({ route }) {
 
   return (
     <View style={styles.root}>
+      {isDemo && isDemo() && (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demaBannerText}>👀 Demo Mode — Sign up to unlock all features</Text>
+        </View>
+      )}
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor="#fe2c55" />}
@@ -193,7 +198,7 @@ export default function ProfileScreen({ route }) {
         {isOwn ? (
           <View>
             <View style={styles.btnRow}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditProfile(true)}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => { if (guardDemo('edit your profile')) return; setShowEditProfile(true); }}>
                 <Text style={styles.editBtnText}>Edit Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareBtn}>
@@ -477,6 +482,8 @@ const styles = StyleSheet.create({
   badgeBlack: { backgroundColor: '#333', borderWidth: 1, borderColor: '#888' },
   badgeTick: { color: '#fff', fontSize: 11, fontWeight: '900' },
   logoutText: { color: '#fe2c55', fontWeight: '800', fontSize: 16 },
+  demoBanner: { backgroundColor: '#1a0a00', borderBottomWidth: 1, borderBottomColor: '#fe2c55', paddingVertical: 8, paddingHorizontal: 16 },
+  demaBannerText: { color: '#fe2c55', fontSize: 12, textAlign: 'center', fontWeight: '600' },
   adminBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffd700', borderRadius: 8, padding: 10, marginHorizontal: 20, marginBottom: 10, justifyContent: 'center' },
   adminBtnText: { color: '#000', fontWeight: '800', fontSize: 14 },
   verifyBtn: { backgroundColor: '#1a1a3a', borderWidth: 1, borderColor: '#1d9bf0', borderRadius: 8, padding: 10, marginHorizontal: 20, marginBottom: 10, alignItems: 'center' },
