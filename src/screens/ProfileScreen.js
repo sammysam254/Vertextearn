@@ -141,7 +141,11 @@ export default function ProfileScreen({ route }) {
 
   return (
     <View style={styles.root}>
-
+      {isDemo && isDemo() && (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demaBannerText}>👀 Demo Mode — Sign up to unlock all features</Text>
+        </View>
+      )}
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor="#fe2c55" />}
@@ -338,9 +342,9 @@ export default function ProfileScreen({ route }) {
             {[
               { icon: 'person-outline', label: 'Edit Profile', action: () => { setShowSettings(false); setShowEditProfile(true); } },
               { icon: 'camera-outline', label: 'Change Avatar', action: () => { setShowSettings(false); pickAvatar(); } },
-              { icon: 'lock-closed-outline', label: 'Privacy & Safety', action: () => Alert.alert('Coming soon') },
-              { icon: 'notifications-outline', label: 'Notifications', action: () => Alert.alert('Coming soon') },
-              { icon: 'cash-outline', label: 'Earnings & Monetization', action: () => Alert.alert('Coming soon') },
+              { icon: 'lock-closed-outline', label: 'Privacy & Safety', action: () => Alert.alert('Privacy', 'Your videos are private by default unless you set them to Public when uploading.') },
+              { icon: 'notifications-outline', label: 'Notifications', action: () => Alert.alert('Notifications', 'You receive notifications for new likes, comments and follows.') },
+              { icon: 'cash-outline', label: 'Earnings & Monetization', action: () => { setShowSettings(false); navigation?.navigate('Earnings'); } },
               { icon: 'help-circle-outline', label: 'Help & Support', action: () => Alert.alert('Email: sammyseth260@gmail.com') },
             ].map(item => (
               <TouchableOpacity key={item.label} style={styles.settingsItem} onPress={item.action}>

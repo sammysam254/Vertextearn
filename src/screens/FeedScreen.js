@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAuth, getCachedFeed, setCachedFeed } from '../context/AuthContext';
+import { WebView } from 'react-native-webview';
+import * as Application from 'expo-application';
 import CommentsModal from '../components/CommentsModal';
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
@@ -100,7 +102,8 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           if (!viewCounted.current) {
             viewCounted.current = true;
             try {
-              const res = await apiFetch(`/videos/${item.id}/view/`, { method: 'POST' });
+              const deviceId = Application.androidId || Application.applicationId || 'unknown';
+            const res = await apiFetch(`/videos/${item.id}/view/`, { method: 'POST', body: JSON.stringify({ device_id: deviceId }) });
               if (res?.counted) setViews(v => v + 1);
             } catch {}
           }
@@ -321,14 +324,6 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
         </TouchableOpacity>
         <TouchableOpacity style={S.btn} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={31} color="#fff" />
-        </TouchableOpacity>
-        {item.user?.id === authUser?.id && (
-          <TouchableOpacity style={S.btn} onPress={deleteVideo}>
-            <Ionicons name="trash-outline" size={28} color="#ff4444" />
-            <Text style={{color:'#ff4444', fontSize:11, marginTop:2}}>Delete</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={S.btn} onPress={handleShare}>
           <Text style={S.btnLbl}>{fmt(item.shares_count)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={S.btn} onPress={toggleSave}>
@@ -344,6 +339,108 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
 }
 
 // ── Main feed screen ───────────────────────────────────────────────────────
+
+// ── Ad Card ───────────────────────────────────────────────────────────────────
+function AdCard({ ad, onView }) {
+  const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
+  const [showWebView, setShowWebView] = useState(!!ad.ad_url);
+  const [webLoading, setWebLoading] = useState(true);
+  const viewRecorded = useRef(false);
+
+  useEffect(() => {
+    // Auto-record view after 3 seconds
+    const t = setTimeout(() => {
+      if (!viewRecorded.current) {
+        viewRecorded.current = true;
+        onView && onView();
+      }
+    }, 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // If ad has a URL, show it in WebView fullscreen
+  if (showWebView && ad.ad_url) return (
+    <View style={{ width: SCREEN_W, height: SCREEN_H, backgroundColor: '#000' }}>
+      {/* Header bar */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: '#0a0a0a', borderBottomWidth: 0.5, borderBottomColor: '#222' }}>
+        <TouchableOpacity onPress={() => setShowWebView(false)} style={{ marginRight: 12 }}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={{ color: '#888', fontSize: 12, flex: 1 }} numberOfLines={1}>{ad.ad_url}</Text>
+        <View style={{ backgroundColor: '#fe2c55', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>AD</Text>
+        </View>
+      </View>
+      {webLoading && (
+        <View style={{ position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -20 }, { translateY: -20 }] }}>
+          <ActivityIndicator size="large" color="#fe2c55" />
+        </View>
+      )}
+      <WebView
+        source={{ uri: ad.ad_url }}
+        style={{ flex: 1, backgroundColor: '#000' }}
+        onLoadStart={() => setWebLoading(true)}
+        onLoadEnd={() => setWebLoading(false)}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        allowsInlineMediaPlayback={true}
+        mediaPlaybackRequiresUserAction={false}
+        onError={() => setWebLoading(false)}
+      />
+    </View>
+  );
+
+  // Ad preview card
+  return (
+    <View style={{ width: SCREEN_W, height: SCREEN_H, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ position: 'absolute', top: 52, right: 16 }}>
+        <View style={{ backgroundColor: '#fe2c55', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 }}>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>SPONSORED</Text>
+        </View>
+      </View>
+
+      <LinearGradient
+        colors={['#1a0814', '#0a0a1a', '#001a0a']}
+        style={{ width: SCREEN_W * 0.88, borderRadius: 24, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' }}
+      >
+        <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#fe2c55', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+          <Ionicons name="megaphone" size={38} color="#fff" />
+        </View>
+
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 10 }}>{ad.title}</Text>
+        <Text style={{ color: '#666', fontSize: 14, textAlign: 'center', marginBottom: 28, lineHeight: 22 }}>
+          {ad.platform === 'monetag' ? 'Powered by Monetag • Tap to view' :
+           ad.platform === 'adsense' ? 'Google AdSense • Tap to view' :
+           'Sponsored Content • Tap to view'}
+        </Text>
+
+        {ad.ad_url ? (
+          <TouchableOpacity
+            style={{ backgroundColor: '#fe2c55', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center' }}
+            onPress={() => {
+              setShowWebView(true);
+              if (!viewRecorded.current) {
+                viewRecorded.current = true;
+                onView && onView();
+              }
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 17 }}>View Ad</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ backgroundColor: '#1a1a1a', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center' }}>
+            <Text style={{ color: '#555', fontWeight: '700', fontSize: 15 }}>Ad Content Loading...</Text>
+          </View>
+        )}
+
+        <Text style={{ color: '#333', fontSize: 11, marginTop: 20, textAlign: 'center' }}>
+          💰 You earn 40% from this ad • Vertext Ads
+        </Text>
+      </LinearGradient>
+    </View>
+  );
+}
+
 export default function FeedScreen() {
   const [videos, setVideos] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -384,7 +481,7 @@ export default function FeedScreen() {
       const endpoint = tab === 'foryou' ? '/feed/' : '/feed/following/';
       const data = await apiFetch(endpoint);
       const arr = Array.isArray(data) ? data : (data.results || []);
-      setVideos(arr);
+      setVideos(injectAds(arr, adLinks));
       await setCachedFeed(arr);
     } catch {
       if (videos.length === 0) setError('Could not load videos. Pull to retry.');

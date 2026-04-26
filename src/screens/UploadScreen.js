@@ -207,13 +207,14 @@ function CameraMode({ navigation }) {
   const [recordedUri, setRecordedUri] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [filter, setFilter] = useState(FILTERS[0]);
   const { getToken, API_URL } = useAuth();
 
   const openCamera = async () => {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission needed', 'Please allow camera access in Settings → Apps → Vertext → Permissions');
+        Alert.alert('Permission needed', 'Allow camera access in Settings → Apps → Vertext → Permissions');
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -239,6 +240,7 @@ function CameraMode({ navigation }) {
       form.append('video_file', { uri: recordedUri, type: 'video/mp4', name: 'camera_video.mp4' });
       form.append('caption', caption);
       form.append('visibility', visibility);
+      form.append('filter', filter.id);
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); };
       await new Promise((res, rej) => {
@@ -251,33 +253,98 @@ function CameraMode({ navigation }) {
       Alert.alert('✅ Posted!', 'Your video is live', [
         { text: 'View Feed', onPress: () => navigation?.navigate('Feed') }
       ]);
-      setRecordedUri(null); setProgress(0);
+      setRecordedUri(null); setProgress(0); setFilter(FILTERS[0]);
     } catch (e) { Alert.alert('Upload failed', e.message); }
     finally { setUploading(false); }
   };
 
+  // After recording — show filter picker then post form
   if (recordedUri) return (
-    <PostForm label="Recorded video" onPost={post} uploading={uploading} progress={progress} />
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* Video preview with filter overlay */}
+      <View style={{ flex: 1, position: 'relative' }}>
+        <View style={{ flex: 1, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }}>
+          <Ionicons name="videocam-outline" size={64} color="#333" />
+          <Text style={{ color: '#555', marginTop: 12 }}>Video recorded ✓</Text>
+        </View>
+        {filter.tint && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: filter.tint }]} pointerEvents="none" />
+        )}
+      </View>
+
+      {/* Filter picker */}
+      <View style={{ height: 100, backgroundColor: '#0a0a0a', borderTopWidth: 0.5, borderTopColor: '#222' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, alignItems: 'center', gap: 10, height: 100, flexDirection: 'row' }}>
+          {FILTERS.map(f => (
+            <TouchableOpacity
+              key={f.id}
+              style={{ alignItems: 'center', gap: 4 }}
+              onPress={() => setFilter(f)}
+            >
+              <View style={{
+                width: 52, height: 52, borderRadius: 10,
+                backgroundColor: f.tint ? f.tint.replace('0.', '0.8') : '#222',
+                borderWidth: filter.id === f.id ? 2 : 0,
+                borderColor: '#fe2c55',
+                justifyContent: 'center', alignItems: 'center',
+              }}>
+                {!f.tint && <Ionicons name="image-outline" size={22} color="#555" />}
+              </View>
+              <Text style={{ color: filter.id === f.id ? '#fe2c55' : '#888', fontSize: 10, fontWeight: filter.id === f.id ? '700' : '400' }}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Post form */}
+      <PostForm
+        label={`${filter.label} filter · tap to change`}
+        onPost={post}
+        uploading={uploading}
+        progress={progress}
+      />
+
+      {/* Retake button */}
+      <TouchableOpacity
+        style={{ position: 'absolute', top: 16, left: 16, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+        onPress={() => setRecordedUri(null)}
+      >
+        <Ionicons name="refresh-outline" size={18} color="#fff" />
+        <Text style={{ color: '#fff', fontSize: 13 }}>Retake</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-      <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
-        <Ionicons name="videocam" size={48} color="#fe2c55" />
+      <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 2, borderColor: '#fe2c55' }}>
+        <Ionicons name="videocam" size={52} color="#fe2c55" />
       </View>
-      <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900', marginBottom: 8 }}>Record a Video</Text>
-      <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 40, lineHeight: 20 }}>
-        Open your camera to record up to 60 seconds of video
+      <Text style={{ color: '#fff', fontSize: 26, fontWeight: '900', marginBottom: 8 }}>Record a Video</Text>
+      <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 12, lineHeight: 20 }}>
+        Record up to 60 seconds · Apply filters after
       </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 36 }}>
+        {FILTERS.slice(0, 6).map(f => (
+          <View key={f.id} style={{ backgroundColor: f.tint ? f.tint.replace('0.', '0.7') : '#222', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ color: '#fff', fontSize: 11 }}>{f.label}</Text>
+          </View>
+        ))}
+        <View style={{ backgroundColor: '#222', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+          <Text style={{ color: '#888', fontSize: 11 }}>+{FILTERS.length - 6} more</Text>
+        </View>
+      </View>
       <TouchableOpacity
-        style={{ backgroundColor: '#fe2c55', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 40, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        style={{ backgroundColor: '#fe2c55', borderRadius: 16, paddingVertical: 18, paddingHorizontal: 48, flexDirection: 'row', alignItems: 'center', gap: 12 }}
         onPress={openCamera}
       >
-        <Ionicons name="camera" size={22} color="#fff" />
-        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>Open Camera</Text>
+        <Ionicons name="camera" size={24} color="#fff" />
+        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18 }}>Open Camera</Text>
       </TouchableOpacity>
-      <Text style={{ color: '#444', fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-        Max 60 seconds · MP4 format
+      <Text style={{ color: '#444', fontSize: 12, textAlign: 'center', marginTop: 20 }}>
+        Uses your phone's native camera for best quality
       </Text>
     </View>
   );
@@ -435,16 +502,7 @@ function LiveMode() {
   // ── Active live stream UI ──
   return (
     <View style={{ flex:1, backgroundColor:'#000' }}>
-      <CameraView
-        style={{ flex:1 }}
-        facing={facing}
-        mode="video"
-        onCameraReady={() => {}}
-        onMountError={(e) => {
-          Alert.alert('Camera Error', 'Could not start camera: ' + (e?.message || 'Unknown error'));
-          setIsLive(false);
-        }}
-      >
+      <View style={{ flex:1, backgroundColor:'#111' }}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor:'rgba(0,0,0,0.2)' }]} pointerEvents="none" />
 
         {/* Top bar */}
@@ -499,7 +557,7 @@ function LiveMode() {
             <Text style={styles.endLiveBtnText}>End</Text>
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 }

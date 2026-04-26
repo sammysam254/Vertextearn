@@ -26,9 +26,16 @@ const KES = (usd) => (usd * 130).toFixed(2);
 export default function EarningsScreen() {
   const { apiFetch, user } = useAuth();
   const [data, setData] = useState(MOCK_EARNINGS);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch && apiFetch('/earnings/').then(setData).catch(() => {});
+    (async () => {
+      try {
+        const real = await apiFetch('/earnings/');
+        if (real && real.total_earnings !== undefined) setData(real);
+      } catch {}
+      setLoading(false);
+    })();
   }, []);
 
   const withdraw = () => {
