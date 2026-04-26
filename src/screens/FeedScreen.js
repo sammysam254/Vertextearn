@@ -450,6 +450,29 @@ export default function FeedScreen() {
   const [fetchingFresh, setFetchingFresh] = useState(false);
   const [error, setError] = useState('');
   const { apiFetch, user: authUser, guardDemo } = useAuth();
+  const [adLinks, setAdLinks] = useState([]);
+  const adIdxRef = useRef(0);
+
+  // Fetch active ads once
+  useEffect(() => {
+    apiFetch('/ads/').then(ads => {
+      if (Array.isArray(ads) && ads.length > 0) setAdLinks(ads);
+    }).catch(() => {});
+  }, []);
+
+  const injectAds = (vids, ads) => {
+    if (!ads || ads.length === 0) return vids;
+    const result = [];
+    vids.forEach((v, i) => {
+      result.push(v);
+      if ((i + 1) % 3 === 0) {
+        const ad = ads[adIdxRef.current % ads.length];
+        adIdxRef.current++;
+        result.push({ ...ad, _isAd: true, id: `ad_${ad.id}_${i}` });
+      }
+    });
+    return result;
+  };
 
   const loadFeed = useCallback(async (isRefresh = false) => {
     setError('');
@@ -458,14 +481,14 @@ export default function FeedScreen() {
     if (!isRefresh) {
       const cached = await getCachedFeed();
       if (cached && cached.length > 0) {
-        setVideos(cached);
+        setVideos(injectAds(cached, adLinks));
         setInitialLoad(false);
         // Now fetch fresh in background without blocking UI
         setFetchingFresh(true);
         try {
           const fresh = await apiFetch('/feed/');
           const data = Array.isArray(fresh) ? fresh : (fresh.results || []);
-          setVideos(data);
+          setVideos(injectAds(data, adLinks));
           await setCachedFeed(data);
         } catch {}
         setFetchingFresh(false);
