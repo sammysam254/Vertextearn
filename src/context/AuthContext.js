@@ -66,6 +66,26 @@ export function AuthProvider({ children }) {
     const text = await res.text();
     let data = {};
     try { data = JSON.parse(text); } catch {}
+
+    // If token expired/invalid, clear it and retry without auth
+    if (res.status === 401) {
+      try {
+        await SecureStore.deleteItemAsync('vertext_token');
+        setUser(null);
+      } catch {}
+      // Retry without token for public endpoints
+      const retryHeaders = {
+        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+        ...(opts.headers || {}),
+      };
+      const retry = await fetch(`${API_URL}${path}`, { ...opts, headers: retryHeaders });
+      const retryText = await retry.text();
+      let retryData = {};
+      try { retryData = JSON.parse(retryText); } catch {}
+      if (!retry.ok) throw new Error(retryData.detail || retryData.error || `Error ${retry.status}`);
+      return retryData;
+    }
+
     if (!res.ok) throw new Error(data.detail || data.error || `Error ${res.status}`);
     return data;
   };
