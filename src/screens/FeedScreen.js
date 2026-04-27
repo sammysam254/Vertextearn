@@ -295,7 +295,9 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
               : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
             }
           </View>
-          <Text style={S.username}>@{item.user?.username}</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
+            <Text style={S.username}>@{item.user?.username}</Text>
+          </TouchableOpacity>
           {item.user?.is_verified && (
             <View style={[S.badgeWrap, item.user?.verification_type === 'blue' ? S.badgeBlue : S.badgeBlack]}>
               <Text style={S.badgeTick}>✓</Text>
@@ -441,7 +443,7 @@ function AdCard({ ad, onView }) {
   );
 }
 
-export default function FeedScreen() {
+export default function FeedScreen({ navigation }) {
   const [videos, setVideos] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [tab, setTab] = useState('foryou');
@@ -453,10 +455,18 @@ export default function FeedScreen() {
   const [adLinks, setAdLinks] = useState([]);
   const adIdxRef = useRef(0);
 
-  // Fetch active ads once
+  // Fetch active ads once and re-inject into existing feed
   useEffect(() => {
     apiFetch('/ads/').then(ads => {
-      if (Array.isArray(ads) && ads.length > 0) setAdLinks(ads);
+      if (Array.isArray(ads) && ads.length > 0) {
+        setAdLinks(ads);
+        // Re-inject ads into existing videos
+        setVideos(prev => {
+          const clean = prev.filter(v => !v._isAd);
+          if (clean.length > 0) return injectAds(clean, ads);
+          return prev;
+        });
+      }
     }).catch(() => {});
   }, []);
 

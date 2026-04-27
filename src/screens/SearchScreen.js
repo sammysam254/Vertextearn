@@ -1,32 +1,88 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, FlatList,
-  TouchableOpacity, StyleSheet, Dimensions,
+  TouchableOpacity, StyleSheet, Image,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
-const { width: W } = Dimensions.get('window');
 const TRENDING = ['#VertextVibes','#FYPage','#Creator','#Nairobi','#KenyaTikTok','#Trending2025','#DanceChallenge','#Comedy','#Fashion','#Tech'];
 
-const CREATORS = Array.from({ length: 8 }, (_, i) => ({
-  id: i + 1, username: `creator_${i + 1}`,
-  followers: Math.floor(Math.random() * 100) + 1,
-}));
-
-export default function SearchScreen() {
+export default function SearchScreen({ navigation }) {
+  const { apiFetch } = useAuth();
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState({ users: [], videos: [] });
+  const [suggested, setSuggested] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingSuggested, setLoadingSuggested] = useState(true);
+
+  // Load real suggested creators on mount
+  useEffect(() => {
+    apiFetch('/admin/users/').then(users => {
+      if (Array.isArray(users)) setSuggested(users.slice(0, 10));
+    }).catch(() => {
+      apiFetch('/search/?q=a').then(d => {
+        if (d?.users) setSuggested(d.users.slice(0, 10));
+      }).catch(() => {});
+    }).finally(() => setLoadingSuggested(false));
+  }, []);
+
+  const search = useCallback(async (q) => {
+    if (!q.trim()) { setResults({ users: [], videos: [] }); return; }
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/search/?q=${encodeURIComponent(q)}`);
+      setResults({ users: data.users || [], videos: data.videos || [] });
+    } catch { setResults({ users: [], videos: [] }); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => search(query), 400);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const goProfile = (username) => {
+    navigation?.navigate('Profile', { username });
+  };
+
+  const UserRow = ({ user }) => (
+    <TouchableOpacity style={S.userRow} onPress={() => goProfile(user.username)}>
+      <View style={S.uAvatar}>
+        {user.avatar
+          ? <Image source={{ uri: user.avatar }} style={S.uAvatarImg} />
+          : <Text style={S.uLetter}>{user.username?.[0]?.toUpperCase()}</Text>
+        }
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={S.uName}>@{user.username}</Text>
+          {user.is_verified && (
+            <View style={[S.badge, user.verification_type === 'blue' ? S.badgeBlue : S.badgeBlack]}>
+              <Text style={S.badgeTick}>✓</Text>
+            </View>
+          )}
+        </View>
+        <Text style={S.uFollowers}>{user.followers_count || 0} followers</Text>
+      </View>
+      <TouchableOpacity style={S.followBtn} onPress={() => goProfile(user.username)}>
+        <Text style={S.followText}>View</Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={styles.root}>
-      {/* Search bar */}
-      <View style={styles.searchBar}>
+    <View style={S.root}>
+      <View style={S.searchBar}>
         <Ionicons name="search" size={20} color="#555" />
         <TextInput
-          style={styles.searchInput}
-          placeholder="Search videos, users, hashtags..."
+          style={S.searchInput}
+          placeholder="Search users, videos..."
           placeholderTextColor="#555"
           value={query}
           onChangeText={setQuery}
+          autoCorrect={false}
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery('')}>
@@ -35,87 +91,91 @@ export default function SearchScreen() {
         )}
       </View>
 
+      {loading && <ActivityIndicator color="#fe2c55" style={{ marginTop: 20 }} />}
+
       {query.length === 0 ? (
         <FlatList
-          data={[{ type: 'trending' }, { type: 'creators' }]}
-          keyExtractor={(_, i) => String(i)}
-          renderItem={({ item }) => {
-            if (item.type === 'trending') return (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>TRENDING</Text>
-                <View style={styles.tagsWrap}>
+          data={[1]}
+          keyExtractor={() => 'main'}
+          renderItem={() => (
+            <View>
+              <View style={S.section}>
+                <Text style={S.sectionTitle}>TRENDING</Text>
+                <View style={S.tagsWrap}>
                   {TRENDING.map(t => (
-                    <TouchableOpacity key={t} onPress={() => setQuery(t)} style={styles.tag}>
-                      <Text style={styles.tagText}>{t}</Text>
+                    <TouchableOpacity key={t} onPress={() => setQuery(t)} style={S.tag}>
+                      <Text style={S.tagText}>{t}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
-            );
-            return (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>SUGGESTED CREATORS</Text>
-                {CREATORS.map(c => (
-                  <View key={c.id} style={styles.creator}>
-                    <View style={styles.cAvatar}>
-                      <Text style={styles.cLetter}>{c.username[0].toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.cInfo}>
-                      <Text style={styles.cName}>@{c.username}</Text>
-                      <Text style={styles.cFollowers}>{c.followers}K followers</Text>
-                    </View>
-                    <TouchableOpacity style={styles.followBtn}>
-                      <Text style={styles.followText}>Follow</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+              <View style={S.section}>
+                <Text style={S.sectionTitle}>CREATORS TO FOLLOW</Text>
+                {loadingSuggested
+                  ? <ActivityIndicator color="#fe2c55" />
+                  : suggested.map(u => <UserRow key={u.id} user={u} />)
+                }
               </View>
-            );
-          }}
+            </View>
+          )}
           contentContainerStyle={{ paddingBottom: 80 }}
         />
       ) : (
-        <View style={styles.grid}>
-          {Array.from({ length: 12 }, (_, i) => (
-            <View key={i} style={styles.gridItem}>
-              <View style={[styles.gridThumb, { backgroundColor: `hsl(${i * 30},40%,15%)` }]}>
-                <Text style={{ color: '#fff', fontSize: 22 }}>🎬</Text>
-              </View>
-              <Text style={styles.gridViews}>{Math.floor(Math.random() * 100)}K</Text>
+        <FlatList
+          data={[...results.users.map(u => ({ ...u, _type: 'user' })), ...results.videos.map(v => ({ ...v, _type: 'video' }))]}
+          keyExtractor={(item) => `${item._type}_${item.id}`}
+          contentContainerStyle={{ paddingBottom: 80 }}
+          ListEmptyComponent={!loading && (
+            <View style={{ alignItems: 'center', marginTop: 60 }}>
+              <Text style={{ color: '#555', fontSize: 16 }}>No results for "{query}"</Text>
             </View>
-          ))}
-        </View>
+          )}
+          renderItem={({ item }) => {
+            if (item._type === 'user') return <UserRow user={item} />;
+            return (
+              <TouchableOpacity style={S.videoRow}>
+                <View style={S.videoThumb}>
+                  {item.thumbnail_url
+                    ? <Image source={{ uri: item.thumbnail_url }} style={{ width: '100%', height: '100%' }} />
+                    : <Ionicons name="videocam-outline" size={24} color="#555" />
+                  }
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={S.videoCaption} numberOfLines={2}>{item.caption || 'No caption'}</Text>
+                  <Text style={S.videoMeta}>@{item.user?.username} · {item.views_count} views</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0a', paddingTop: 50 },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a',
-    borderRadius: 12, marginHorizontal: 16, marginBottom: 16,
-    paddingHorizontal: 14, paddingVertical: 10, gap: 10,
-  },
-  searchInput: { flex: 1, color: '#fff', fontSize: 16 },
-  section: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionTitle: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 12 },
-  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tag: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
-  },
-  tagText: { color: '#fff', fontSize: 14 },
-  creator: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12, borderBottomWidth: 0.5, borderBottomColor: '#111' },
-  cAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fe2c55', justifyContent: 'center', alignItems: 'center' },
-  cLetter: { color: '#fff', fontWeight: '900', fontSize: 18 },
-  cInfo: { flex: 1 },
-  cName: { color: '#fff', fontWeight: '700' },
-  cFollowers: { color: '#666', fontSize: 13, marginTop: 2 },
-  followBtn: { backgroundColor: '#fe2c55', borderRadius: 6, paddingHorizontal: 16, paddingVertical: 6 },
+const S = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000', paddingTop: 52 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', margin: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: '#222' },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15 },
+  section: { padding: 16 },
+  sectionTitle: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 },
+  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { backgroundColor: '#111', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: '#222' },
+  tagText: { color: '#fff', fontSize: 13 },
+  userRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 0.5, borderBottomColor: '#111', gap: 12 },
+  uAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fe2c55', justifyContent: 'center', alignItems: 'center' },
+  uAvatarImg: { width: 46, height: 46, borderRadius: 23 },
+  uLetter: { color: '#fff', fontWeight: '900', fontSize: 18 },
+  uName: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  uFollowers: { color: '#666', fontSize: 12, marginTop: 2 },
+  followBtn: { backgroundColor: '#fe2c55', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
   followText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, padding: 2 },
-  gridItem: { width: (W - 6) / 3, aspectRatio: 9 / 16, position: 'relative' },
-  gridThumb: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  gridViews: { position: 'absolute', bottom: 4, left: 6, color: '#fff', fontSize: 11, fontWeight: '700' },
+  badge: { width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  badgeBlue: { backgroundColor: '#1d9bf0' },
+  badgeBlack: { backgroundColor: '#555' },
+  badgeTick: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  videoRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#111', gap: 12 },
+  videoThumb: { width: 70, height: 90, backgroundColor: '#111', borderRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  videoCaption: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  videoMeta: { color: '#666', fontSize: 12, marginTop: 4 },
 });

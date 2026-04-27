@@ -16,7 +16,7 @@ const THUMB_W = (W - 4) / 3;
 const fmt = (n) => !n ? '0' : n >= 1000000 ? `${(n/1e6).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : `${n}`;
 
 export default function ProfileScreen({ route, navigation }) {
-  const { user: authUser, logout, apiFetch, refreshUser, API_URL, isDemo, guardDemo, setUser } = useAuth();
+  const { user: authUser, logout, apiFetch, refreshUser, API_URL } = useAuth();
   const targetUsername = route?.params?.username;
   const isOwn = !targetUsername || targetUsername === authUser?.username;
 
@@ -99,15 +99,18 @@ export default function ProfileScreen({ route, navigation }) {
       const formData = new FormData();
       formData.append('avatar', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'avatar.jpg' });
       try {
-        const token = await apiFetch._getToken?.() || '';
-        await fetch(`${API_URL}/auth/me/`, {
+        const res = await apiFetch('/profile/update/', {
           method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
+        const newAvatar = res?.avatar || res?.user?.avatar;
+        if (newAvatar) {
+          setDisplayUser(u => ({ ...u, avatar: newAvatar }));
+          setUser(u => u ? { ...u, avatar: newAvatar } : u);
+        }
         await refreshUser();
-        Alert.alert('✅', 'Avatar updated!');
-      } catch { Alert.alert('Error', 'Could not update avatar'); }
+        Alert.alert('✅', 'Profile picture updated!');
+      } catch(e) { Alert.alert('Error', 'Could not update avatar: ' + e.message); }
     }
   };
 
