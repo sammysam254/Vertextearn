@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
-import AdminPanel from './AdminPanel';
+// AdminPanel loaded lazily to prevent import crash
 
 const { width: W } = Dimensions.get('window');
 const THUMB_W = (W - 4) / 3;
@@ -144,7 +144,7 @@ export default function ProfileScreen({ route, navigation }) {
 
   return (
     <View style={styles.root}>
-      {isDemo?.() && (
+      {isDemo && isDemo() && (
         <View style={styles.demoBanner}>
           <Text style={styles.demaBannerText}>👀 Demo Mode — Sign up to unlock all features</Text>
         </View>
@@ -366,11 +366,14 @@ export default function ProfileScreen({ route, navigation }) {
         </View>
       )}
       {/* Admin Panel */}
-      {showAdmin && (
-        <View style={StyleSheet.absoluteFillObject} >
-          <AdminPanel onClose={() => setShowAdmin(false)} />
-        </View>
-      )}
+      {showAdmin && (() => {
+        const AdminPanel = require('./AdminPanel').default;
+        return (
+          <View style={StyleSheet.absoluteFillObject}>
+            <AdminPanel onClose={() => setShowAdmin(false)} />
+          </View>
+        );
+      })()}
 
       {/* Verification Apply Modal */}
       {showVerifyModal && (
