@@ -21,6 +21,7 @@ export default function AdminPanel({ onClose }) {
   const [showAdModal, setShowAdModal] = useState(false);
   const [adForm, setAdForm] = useState({ title: '', platform: 'monetag', ad_url: '', revenue_per_view: '0.0001', show_frequency: '7' });
   const [adLoading, setAdLoading] = useState(false);
+  const [deletingSupabase, setDeletingSupabase] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -86,6 +87,27 @@ export default function AdminPanel({ onClose }) {
       await apiFetch(`/admin/users/${userId}/monetize/`, { method: 'POST', body: JSON.stringify({ monetized: !monetized }) });
       setUsers(u => u.map(usr => usr.id === userId ? { ...usr, is_monetized: !monetized } : usr));
     } catch (e) { Alert.alert('Error', e.message); }
+  };
+
+  const deleteAllSupabaseVideos = async () => {
+    Alert.alert(
+      '🗑️ Delete All Supabase Videos',
+      'This will permanently delete all videos stored on Supabase from both the database and storage. Videos on Cloudflare R2 will NOT be affected. This cannot be undone!',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete All', style: 'destructive', onPress: async () => {
+          setDeletingSupabase(true);
+          try {
+            const res = await apiFetch('/admin/delete-supabase-videos/', { method: 'POST' });
+            Alert.alert('✅ Done', res.message || `Deleted ${res.deleted} videos`);
+            load(true);
+          } catch (e) {
+            Alert.alert('Error', e.message);
+          }
+          setDeletingSupabase(false);
+        }},
+      ]
+    );
   };
 
   const createAd = async () => {
@@ -308,6 +330,29 @@ export default function AdminPanel({ onClose }) {
           </View>
         )}
 
+        {tab === 'settings' && (
+          <View style={{ marginTop: 24, marginBottom: 8 }}>
+            <Text style={S.sectionTitle}>DANGER ZONE</Text>
+            <View style={{ backgroundColor: '#1a0000', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#4a0000' }}>
+              <Text style={{ color: '#ff4444', fontWeight: '800', fontSize: 15, marginBottom: 6 }}>
+                🗑️ Delete All Supabase Videos
+              </Text>
+              <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 18 }}>
+                Permanently deletes all videos stored on Supabase. Users must re-upload using the new Cloudflare R2 system. This cannot be undone.
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: '#8b0000', borderRadius: 10, padding: 14, alignItems: 'center' }}
+                onPress={deleteAllSupabaseVideos}
+                disabled={deletingSupabase}
+              >
+                {deletingSupabase
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>Delete All Supabase Videos</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         <View style={{ height: 80 }} />
       </ScrollView>
 
