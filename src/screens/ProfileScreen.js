@@ -144,7 +144,7 @@ export default function ProfileScreen({ route, navigation }) {
 
   return (
     <View style={styles.root}>
-      {isDemo && isDemo() && (
+      {isDemo?.() && (
         <View style={styles.demoBanner}>
           <Text style={styles.demaBannerText}>👀 Demo Mode — Sign up to unlock all features</Text>
         </View>
