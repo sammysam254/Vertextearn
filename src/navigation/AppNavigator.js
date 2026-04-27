@@ -33,25 +33,7 @@ function ProfileStack() {
   );
 }
 
-// Feed stack allows navigating to profiles from feed
-function FeedStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
-      <Stack.Screen name="FeedMain" component={FeedScreen} />
-      <Stack.Screen name="UserProfile" component={ProfileScreen} />
-    </Stack.Navigator>
-  );
-}
 
-// Search stack allows navigating to profiles from search
-function SearchStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
-      <Stack.Screen name="SearchMain" component={SearchScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-    </Stack.Navigator>
-  );
-}
 
 export default function AppNavigator() {
   const { guardDemo } = useAuth();
@@ -76,8 +58,8 @@ export default function AppNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Feed" component={FeedStack} options={{ title: 'Home' }} />
-      <Tab.Screen name="Search" component={SearchStack} />
+      <Tab.Screen name="Feed" component={FeedScreen} options={{ title: 'Home' }} />
+      <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen
         name="Upload"
         component={UploadScreen}
