@@ -350,6 +350,30 @@ export default function AdminPanel({ onClose }) {
                   : <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>Delete All Supabase Videos</Text>
                 }
               </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: '#3d0000', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 10 }}
+                onPress={() => {
+                  Alert.alert(
+                    '⚠️ DELETE ALL VIDEOS',
+                    'This will permanently delete EVERY video on the platform including R2 and Supabase. All view counts reset. This CANNOT be undone!',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'DELETE EVERYTHING', style: 'destructive', onPress: async () => {
+                        setDeletingSupabase(true);
+                        try {
+                          const res = await apiFetch('/admin/delete-all-videos/', { method: 'POST' });
+                          Alert.alert('✅ Done', res.message);
+                          load(true);
+                        } catch(e) { Alert.alert('Error', e.message); }
+                        setDeletingSupabase(false);
+                      }}
+                    ]
+                  );
+                }}
+                disabled={deletingSupabase}
+              >
+                <Text style={{ color: '#ff4444', fontWeight: '900', fontSize: 15 }}>🗑️ Delete ALL Videos (Full Reset)</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
