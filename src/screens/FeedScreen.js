@@ -289,7 +289,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
       {/* Bottom: user + caption + views */}
       <View style={S.bottom} pointerEvents="box-none">
         <View style={S.userRow}>
-          <View style={S.avatar}>
+          <TouchableOpacity style={S.avatar} onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
             {item.user?.avatar
               ? <Image source={{ uri: item.user.avatar }} style={S.avatarImg} />
               : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
