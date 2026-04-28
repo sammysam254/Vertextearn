@@ -11,7 +11,7 @@ import EarningsScreen from '../screens/EarningsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator();
 
 function UploadButton({ onPress }) {
   return (
@@ -23,19 +23,7 @@ function UploadButton({ onPress }) {
   );
 }
 
-// Profile stack allows navigating to other users' profiles
-function ProfileStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
-      <Stack.Screen name="MyProfile" component={ProfileScreen} />
-      <Stack.Screen name="UserProfile" component={ProfileScreen} />
-    </Stack.Navigator>
-  );
-}
-
-
-
-export default function AppNavigator() {
+function TabNavigator() {
   const { guardDemo } = useAuth();
   return (
     <Tab.Navigator
@@ -66,17 +54,33 @@ export default function AppNavigator() {
         options={({ navigation }) => ({
           title: '',
           tabBarIcon: () => null,
-          tabBarButton: (props) => (
-            <UploadButton onPress={() => {
-              if (guardDemo('upload videos', 'Create your own account to start uploading and earning!')) return;
-              navigation.navigate('Upload');
-            }} />
+          tabBarButton: () => (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                if (guardDemo('upload videos', 'Create your own account to start uploading and earning!')) return;
+                navigation.navigate('Upload');
+              }}
+            >
+              <View style={styles.uploadBtn}>
+                <Ionicons name="add" size={28} color="#fff" />
+              </View>
+            </TouchableOpacity>
           ),
         })}
       />
       <Tab.Screen name="Earnings" component={EarningsScreen} options={{ title: 'Earn' }} />
-      <Tab.Screen name="Profile" component={ProfileStack} options={{ title: 'Me' }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Me' }} />
     </Tab.Navigator>
+  );
+}
+
+export default function AppNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+      <RootStack.Screen name="Tabs" component={TabNavigator} />
+      <RootStack.Screen name="UserProfile" component={ProfileScreen} options={{ animation: 'slide_from_right' }} />
+    </RootStack.Navigator>
   );
 }
 
