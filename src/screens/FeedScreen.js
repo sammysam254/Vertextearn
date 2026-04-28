@@ -294,7 +294,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
               ? <Image source={{ uri: item.user.avatar }} style={S.avatarImg} />
               : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
             }
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={S.username}>@{item.user?.username}</Text>
           </TouchableOpacity>
