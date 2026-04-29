@@ -246,33 +246,34 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
 
       {/* Video player */}
       {canShow ? (
-        <ExpoVideo
-          key={item.video_url}
-          ref={videoRef}
-          source={{ uri: item.video_url }}
-          style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.COVER}
-          androidImplementation="MediaPlayer"
-          isLooping
-          isMuted={false}
-          shouldPlay={isActive && !paused}
-          useNativeControls={false}
-          progressUpdateIntervalMillis={250}
-          onLoadStart={() => { setBuffering(true); setVideoReady(false); }}
-          onLoad={() => { setBuffering(false); setVideoReady(true); }}
-          onReadyForDisplay={() => { setBuffering(false); setVideoReady(true); }}
-          onPlaybackStatusUpdate={s => {
-            setBuffering(!!s.isBuffering);
-            if (s.durationMillis > 0) {
-              setProgress(s.positionMillis / s.durationMillis);
-            }
-            if (s.didJustFinish) {
-              setShowWatermark(true);
-              setTimeout(() => setShowWatermark(false), 2000);
-            }
-          }}
-          onError={() => { setLoadError(true); setBuffering(false); }}
-        />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}>
+          <ExpoVideo
+            key={`${item.video_url}_${isActive}`}
+            ref={videoRef}
+            source={{ uri: item.video_url }}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode={ResizeMode.COVER}
+            isLooping
+            isMuted={false}
+            shouldPlay={isActive && !paused}
+            useNativeControls={false}
+            progressUpdateIntervalMillis={250}
+            onLoadStart={() => { setBuffering(true); setVideoReady(false); }}
+            onLoad={() => { setBuffering(false); setVideoReady(true); }}
+            onReadyForDisplay={() => { setBuffering(false); setVideoReady(true); }}
+            onPlaybackStatusUpdate={s => {
+              setBuffering(!!s.isBuffering);
+              if (s.durationMillis > 0) {
+                setProgress(s.positionMillis / s.durationMillis);
+              }
+              if (s.didJustFinish) {
+                setShowWatermark(true);
+                setTimeout(() => setShowWatermark(false), 2000);
+              }
+            }}
+            onError={() => { setLoadError(true); setBuffering(false); }}
+          />
+        </View>
       ) : (
         <View style={S.noVideo}>
           {item.thumbnail_url
