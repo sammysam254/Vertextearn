@@ -74,7 +74,6 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const [paused, setPaused] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
   const [liked, setLiked] = useState(item.is_liked);
   const [saved, setSaved] = useState(item.is_saved);
   const [likes, setLikes] = useState(item.likes_count);
@@ -246,34 +245,31 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
 
       {/* Video player */}
       {canShow ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}>
-          <ExpoVideo
-            key={`${item.video_url}_${isActive}`}
-            ref={videoRef}
-            source={{ uri: item.video_url }}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            isMuted={false}
-            shouldPlay={isActive && !paused}
-            useNativeControls={false}
-            progressUpdateIntervalMillis={250}
-            onLoadStart={() => { setBuffering(true); setVideoReady(false); }}
-            onLoad={() => { setBuffering(false); setVideoReady(true); }}
-            onReadyForDisplay={() => { setBuffering(false); setVideoReady(true); }}
-            onPlaybackStatusUpdate={s => {
-              setBuffering(!!s.isBuffering);
-              if (s.durationMillis > 0) {
-                setProgress(s.positionMillis / s.durationMillis);
-              }
-              if (s.didJustFinish) {
-                setShowWatermark(true);
-                setTimeout(() => setShowWatermark(false), 2000);
-              }
-            }}
-            onError={() => { setLoadError(true); setBuffering(false); }}
-          />
-        </View>
+        <ExpoVideo
+          ref={videoRef}
+          source={{ uri: item.video_url }}
+          style={StyleSheet.absoluteFill}
+          resizeMode={ResizeMode.COVER}
+          isLooping
+          isMuted={false}
+          shouldPlay={isActive && !paused}
+          useNativeControls={false}
+          progressUpdateIntervalMillis={250}
+          onLoadStart={() => setBuffering(true)}
+          onLoad={() => setBuffering(false)}
+          onReadyForDisplay={() => setBuffering(false)}
+          onPlaybackStatusUpdate={s => {
+            setBuffering(!!s.isBuffering);
+            if (s.durationMillis > 0) {
+              setProgress(s.positionMillis / s.durationMillis);
+            }
+            if (s.didJustFinish) {
+              setShowWatermark(true);
+              setTimeout(() => setShowWatermark(false), 2000);
+            }
+          }}
+          onError={() => { setLoadError(true); setBuffering(false); }}
+        />
       ) : (
         <View style={S.noVideo}>
           {item.thumbnail_url
