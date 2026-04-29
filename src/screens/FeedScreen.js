@@ -74,6 +74,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const [paused, setPaused] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [videoReady, setVideoReady] = useState(false);
   const [liked, setLiked] = useState(item.is_liked);
   const [saved, setSaved] = useState(item.is_saved);
   const [likes, setLikes] = useState(item.likes_count);
@@ -246,6 +247,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
       {/* Video player */}
       {canShow ? (
         <ExpoVideo
+          key={item.video_url}
           ref={videoRef}
           source={{ uri: item.video_url }}
           style={StyleSheet.absoluteFill}
@@ -255,9 +257,9 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           shouldPlay={isActive && !paused}
           useNativeControls={false}
           progressUpdateIntervalMillis={250}
-          onLoadStart={() => setBuffering(true)}
-          onLoad={() => setBuffering(false)}
-          onReadyForDisplay={() => setBuffering(false)}
+          onLoadStart={() => { setBuffering(true); setVideoReady(false); }}
+          onLoad={() => { setBuffering(false); setVideoReady(true); }}
+          onReadyForDisplay={() => { setBuffering(false); setVideoReady(true); }}
           onPlaybackStatusUpdate={s => {
             setBuffering(!!s.isBuffering);
             if (s.durationMillis > 0) {
