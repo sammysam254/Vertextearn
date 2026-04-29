@@ -252,6 +252,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           source={{ uri: item.video_url }}
           style={StyleSheet.absoluteFill}
           resizeMode={ResizeMode.COVER}
+          androidImplementation="MediaPlayer"
           isLooping
           isMuted={false}
           shouldPlay={isActive && !paused}
