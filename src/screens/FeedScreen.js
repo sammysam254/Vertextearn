@@ -11,6 +11,8 @@ import * as Haptics from 'expo-haptics';
 import { useAuth, getCachedFeed, setCachedFeed } from '../context/AuthContext';
 import { WebView } from 'react-native-webview';
 import * as Application from 'expo-application';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import CommentsModal from '../components/CommentsModal';
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
@@ -70,6 +72,8 @@ const lb = StyleSheet.create({
 function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const videoRef = useRef(null);
   const [paused, setPaused] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [liked, setLiked] = useState(item.is_liked);
   const [saved, setSaved] = useState(item.is_saved);
   const [likes, setLikes] = useState(item.likes_count);
@@ -203,6 +207,24 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
     } catch {}
   };
 
+  const downloadVideo = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow media library access to save videos');
+        return;
+      }
+      Alert.alert('Downloading...', 'Saving video to gallery');
+      const filename = `vertext_${item.id}_${Date.now()}.mp4`;
+      const downloadPath = FileSystem.documentDirectory + filename;
+      const dl = await FileSystem.downloadAsync(item.video_url, downloadPath);
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+      Alert.alert('✅ Saved!', 'Video saved to your gallery with Vertext watermark');
+    } catch (e) {
+      Alert.alert('Error', 'Could not download video: ' + e.message);
+    }
+  };
+
   const handleShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -236,7 +258,16 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           onLoadStart={() => setBuffering(true)}
           onLoad={() => setBuffering(false)}
           onReadyForDisplay={() => setBuffering(false)}
-          onPlaybackStatusUpdate={s => setBuffering(!!s.isBuffering)}
+          onPlaybackStatusUpdate={s => {
+            setBuffering(!!s.isBuffering);
+            if (s.durationMillis > 0) {
+              setProgress(s.positionMillis / s.durationMillis);
+            }
+            if (s.didJustFinish) {
+              setShowWatermark(true);
+              setTimeout(() => setShowWatermark(false), 2000);
+            }
+          }}
           onError={() => { setLoadError(true); setBuffering(false); }}
         />
       ) : (
@@ -254,7 +285,33 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
         </View>
       )}
 
-      {/* Full-screen tap zone */}
+      {/* Vertext watermark - shows at end of video */}
+      {showWatermark && (
+        <View style={S.watermarkOverlay} pointerEvents="none">
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.85)']}
+            style={S.watermarkGrad}
+          >
+            <View style={S.watermarkContent}>
+              <LinearGradient colors={['#fe2c55', '#6c3de0']} style={S.watermarkLogo}>
+                <Text style={S.watermarkLogoText}>V</Text>
+              </LinearGradient>
+              <View>
+                <Text style={S.watermarkTitle}>Vertext</Text>
+                <Text style={S.watermarkSub}>Where creators earn</Text>
+              </View>
+            </View>
+            <Text style={S.watermarkUrl}>vertext.app</Text>
+          </LinearGradient>
+        </View>
+      )}
+
+      {/* Progress bar */}
+      <View style={S.progressBar} pointerEvents="none">
+        <View style={[S.progressFill, { width: `${progress * 100}%` }]} />
+      </View>
+
+      {/* Full-screen tap zone */}}
       <View style={StyleSheet.absoluteFill}
         onStartShouldSetResponder={() => true}
         onResponderRelease={handleTap}
@@ -289,13 +346,13 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
       {/* Bottom: user + caption + views */}
       <View style={S.bottom} pointerEvents="box-none">
         <View style={S.userRow}>
-          <TouchableOpacity style={S.avatar} onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
+          <View style={S.avatar}>
             {item.user?.avatar
               ? <Image source={{ uri: item.user.avatar }} style={S.avatarImg} />
               : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
             }
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          </View>
+          <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
             <Text style={S.username}>@{item.user?.username}</Text>
           </TouchableOpacity>
           {item.user?.is_verified && (
@@ -617,6 +674,16 @@ const S = StyleSheet.create({
   logoV: { fontSize: 56, fontWeight: '900', color: '#fe2c55' },
   logoTxt: { fontSize: 22, fontWeight: '700', color: '#fff', marginTop: -8, letterSpacing: 2 },
   noVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
+  watermarkOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 10 },
+  watermarkGrad: { padding: 20, paddingBottom: 100 },
+  watermarkContent: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  watermarkLogo: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  watermarkLogoText: { color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic' },
+  watermarkTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  watermarkSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  watermarkUrl: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
+  progressBar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
+  progressFill: { height: 2, backgroundColor: '#fe2c55' },
   errBox: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', padding: 18, borderRadius: 12 },
   errText: { color: '#fe2c55', marginTop: 7, fontSize: 13 },
   pauseWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
