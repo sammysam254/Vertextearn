@@ -28,8 +28,8 @@
     "react-native-screens": "~3.29.0",
     "expo-application": "~5.8.3",
     "react-native-webview": "13.6.3",
-    "expo-media-library": "~16.0.4",
-    "expo-file-system": "~17.0.1"
+    "expo-media-library": "~15.9.1",
+    "expo-file-system": "~16.0.9"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0"
