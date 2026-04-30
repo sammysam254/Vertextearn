@@ -260,7 +260,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
                     await videoRef.current.playAsync();
                   }
                 } catch {}
-              }, 2500);
+              }, 5000);
             } }}
           onError={() => { setLoadError(true); setBuffering(false); }}
         />
@@ -281,14 +281,14 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
 
       {showWatermark && (
         <View style={S.wmWrap} pointerEvents="none">
-          <LinearGradient colors={['transparent','rgba(0,0,0,0.9)']} style={S.wmGrad}>
-            <View style={S.wmRow}>
-              <LinearGradient colors={['#fe2c55','#6c3de0']} style={S.wmLogo}>
-                <Text style={S.wmV}>V</Text>
-              </LinearGradient>
-              <View><Text style={S.wmTitle}>Vertext</Text><Text style={S.wmSub}>Where creators earn</Text></View>
-            </View>
-          </LinearGradient>
+          <View style={S.wmCenter}>
+            <LinearGradient colors={['#fe2c55','#6c3de0']} style={S.wmLogo}>
+              <Text style={S.wmV}>V</Text>
+            </LinearGradient>
+            <Text style={S.wmTitle}>Vertext</Text>
+            <Text style={S.wmSub}>Where creators earn</Text>
+            <Text style={S.wmUrl}>vertext.app</Text>
+          </View>
         </View>
       )}
       <View style={S.progBar} pointerEvents="none">
@@ -657,15 +657,14 @@ const S = StyleSheet.create({
   logoV: { fontSize: 56, fontWeight: '900', color: '#fe2c55' },
   logoTxt: { fontSize: 22, fontWeight: '700', color: '#fff', marginTop: -8, letterSpacing: 2 },
   noVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
-  wmWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, justifyContent: 'flex-end', zIndex: 5 },
-  wmGrad: { padding: 20, paddingBottom: 110 },
-  wmRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  wmLogo: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  wmV: { color: '#fff', fontSize: 20, fontWeight: '900', fontStyle: 'italic' },
-  wmTitle: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  wmWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, justifyContent: 'center', alignItems: 'center', zIndex: 5, backgroundColor: 'rgba(0,0,0,0.45)' },
+  wmCenter: { alignItems: 'center', gap: 8 },
+  wmLogo: { width: 70, height: 70, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  wmV: { color: '#fff', fontSize: 36, fontWeight: '900', fontStyle: 'italic' },
+  wmTitle: { color: '#fff', fontSize: 26, fontWeight: '900' },
   wmSub: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
-  progBar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.15)', zIndex: 4 },
-  progFill: { height: 2, backgroundColor: '#fe2c55' },
+  progBar: { position: 'absolute', bottom: 62, left: 0, right: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.25)', zIndex: 10 },
+  progFill: { height: 3, backgroundColor: '#fe2c55' },
   errBox: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', padding: 18, borderRadius: 12 },
   errText: { color: '#fe2c55', marginTop: 7, fontSize: 13 },
   pauseWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
