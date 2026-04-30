@@ -13,8 +13,6 @@ import { WebView } from 'react-native-webview';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
 import CommentsModal from '../components/CommentsModal';
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
@@ -75,9 +73,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const videoRef = useRef(null);
   const [paused, setPaused] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [showWatermark, setShowWatermark] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [vidProgress, setVidProgress] = useState(0);
   const [liked, setLiked] = useState(item.is_liked);
   const [saved, setSaved] = useState(item.is_saved);
   const [likes, setLikes] = useState(item.likes_count);
@@ -214,29 +210,11 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
   const downloadVideo = async () => {
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Allow media library access to save videos');
-        return;
-      }
-      Alert.alert('Downloading...', 'Saving video to gallery');
-      const filename = `vertext_${item.id}_${Date.now()}.mp4`;
-      const downloadPath = FileSystem.documentDirectory + filename;
-      const dl = await FileSystem.downloadAsync(item.video_url, downloadPath);
-      await MediaLibrary.saveToLibraryAsync(dl.uri);
-      Alert.alert('✅ Saved!', 'Video saved to your gallery with Vertext watermark');
-    } catch (e) {
-      Alert.alert('Error', 'Could not download video: ' + e.message);
-    }
-  };
-
-  const downloadVideo = async () => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') { Alert.alert('Permission needed', 'Allow media library access'); return; }
-      const filename = FileSystem.documentDirectory + 'vertext_' + item.id + '.mp4';
-      const dl = await FileSystem.downloadAsync(item.video_url, filename);
+      const path = FileSystem.documentDirectory + 'vertext_' + item.id + '.mp4';
+      const dl = await FileSystem.downloadAsync(item.video_url, path);
       await MediaLibrary.saveToLibraryAsync(dl.uri);
-      Alert.alert('✅ Saved!', 'Video saved to your gallery');
+      Alert.alert('Saved!', 'Video saved to your gallery');
     } catch (e) { Alert.alert('Error', e.message); }
   };
 
@@ -273,16 +251,7 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           onLoadStart={() => setBuffering(true)}
           onLoad={() => setBuffering(false)}
           onReadyForDisplay={() => setBuffering(false)}
-          onPlaybackStatusUpdate={s => {
-            setBuffering(!!s.isBuffering);
-            if (s.durationMillis > 0) {
-              setProgress(s.positionMillis / s.durationMillis);
-            }
-            if (s.didJustFinish) {
-              setShowWatermark(true);
-              setTimeout(() => setShowWatermark(false), 2000);
-            }
-          }}
+          onPlaybackStatusUpdate={s => { setBuffering(!!s.isBuffering); if (s.durationMillis > 0) setVidProgress(s.positionMillis / s.durationMillis); if (s.didJustFinish) { setShowWatermark(true); setTimeout(() => setShowWatermark(false), 2500); } }}
           onError={() => { setLoadError(true); setBuffering(false); }}
         />
       ) : (
@@ -300,55 +269,22 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
         </View>
       )}
 
-      {/* Vertext watermark - shows at end of video */}
       {showWatermark && (
-        <View style={S.watermarkOverlay} pointerEvents="none">
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.85)']}
-            style={S.watermarkGrad}
-          >
-            <View style={S.watermarkContent}>
-              <LinearGradient colors={['#fe2c55', '#6c3de0']} style={S.watermarkLogo}>
-                <Text style={S.watermarkLogoText}>V</Text>
-              </LinearGradient>
-              <View>
-                <Text style={S.watermarkTitle}>Vertext</Text>
-                <Text style={S.watermarkSub}>Where creators earn</Text>
-              </View>
-            </View>
-            <Text style={S.watermarkUrl}>vertext.app</Text>
-          </LinearGradient>
-        </View>
-      )}
-
-      {/* Progress bar */}
-      <View style={S.progressBar} pointerEvents="none">
-        <View style={[S.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
-
-      {/* Vertext watermark shown at end of video */}
-      {showWatermark && (
-        <View style={S.wmOverlay} pointerEvents="none">
+        <View style={S.wmWrap} pointerEvents="none">
           <LinearGradient colors={['transparent','rgba(0,0,0,0.9)']} style={S.wmGrad}>
             <View style={S.wmRow}>
               <LinearGradient colors={['#fe2c55','#6c3de0']} style={S.wmLogo}>
-                <Text style={S.wmLogoTxt}>V</Text>
+                <Text style={S.wmV}>V</Text>
               </LinearGradient>
-              <View>
-                <Text style={S.wmTitle}>Vertext</Text>
-                <Text style={S.wmSub}>Where creators earn • vertext.app</Text>
-              </View>
+              <View><Text style={S.wmTitle}>Vertext</Text><Text style={S.wmSub}>Where creators earn</Text></View>
             </View>
           </LinearGradient>
         </View>
       )}
-
-      {/* Progress bar */}
-      <View style={S.progressBar} pointerEvents="none">
-        <View style={[S.progressFill, { width: (progress * 100) + '%' }]} />
+      <View style={S.progBar} pointerEvents="none">
+        <View style={[S.progFill, {width: (vidProgress * 100) + '%'}]} />
       </View>
-
-      {/* Full-screen tap zone */}}
+      {/* Full-screen tap zone */}
       <View style={StyleSheet.absoluteFill}
         onStartShouldSetResponder={() => true}
         onResponderRelease={handleTap}
@@ -383,13 +319,13 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
       {/* Bottom: user + caption + views */}
       <View style={S.bottom} pointerEvents="box-none">
         <View style={S.userRow}>
-          <View style={S.avatar}>
+          <TouchableOpacity style={S.avatar} onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
             {item.user?.avatar
               ? <Image source={{ uri: item.user.avatar }} style={S.avatarImg} />
               : <Text style={S.avatarLetter}>{item.user?.username?.[0]?.toUpperCase() || '?'}</Text>
             }
-          </View>
-          <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })}>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation?.navigate('UserProfile', { username: item.user?.username })} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={S.username}>@{item.user?.username}</Text>
           </TouchableOpacity>
           {item.user?.is_verified && (
@@ -711,25 +647,15 @@ const S = StyleSheet.create({
   logoV: { fontSize: 56, fontWeight: '900', color: '#fe2c55' },
   logoTxt: { fontSize: 22, fontWeight: '700', color: '#fff', marginTop: -8, letterSpacing: 2 },
   noVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
-  watermarkOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 10 },
-  watermarkGrad: { padding: 20, paddingBottom: 100 },
-  watermarkContent: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  watermarkLogo: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  watermarkLogoText: { color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic' },
-  watermarkTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
-  watermarkSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  watermarkUrl: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  progressBar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
-  progressFill: { height: 2, backgroundColor: '#fe2c55' },
-  wmOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 5 },
+  wmWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, justifyContent: 'flex-end', zIndex: 5 },
   wmGrad: { padding: 20, paddingBottom: 110 },
   wmRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  wmLogo: { width: 42, height: 42, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  wmLogoTxt: { color: '#fff', fontSize: 22, fontWeight: '900', fontStyle: 'italic' },
-  wmTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
-  wmSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12 },
-  progressBar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.15)', zIndex: 4 },
-  progressFill: { height: 2, backgroundColor: '#fe2c55' },
+  wmLogo: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  wmV: { color: '#fff', fontSize: 20, fontWeight: '900', fontStyle: 'italic' },
+  wmTitle: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  wmSub: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+  progBar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.15)', zIndex: 4 },
+  progFill: { height: 2, backgroundColor: '#fe2c55' },
   errBox: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', padding: 18, borderRadius: 12 },
   errText: { color: '#fe2c55', marginTop: 7, fontSize: 13 },
   pauseWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
