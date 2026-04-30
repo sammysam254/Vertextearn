@@ -243,7 +243,6 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           source={{ uri: item.video_url }}
           style={StyleSheet.absoluteFill}
           resizeMode={ResizeMode.COVER}
-          isLooping
           isMuted={false}
           shouldPlay={isActive && !paused}
           useNativeControls={false}
@@ -251,7 +250,18 @@ function VideoItem({ item, isActive, shouldPreload, onRefresh }) {
           onLoadStart={() => setBuffering(true)}
           onLoad={() => setBuffering(false)}
           onReadyForDisplay={() => setBuffering(false)}
-          onPlaybackStatusUpdate={s => { setBuffering(!!s.isBuffering); if (s.durationMillis > 0) setVidProgress(s.positionMillis / s.durationMillis); if (s.didJustFinish) { setShowWatermark(true); setTimeout(() => setShowWatermark(false), 2500); } }}
+          onPlaybackStatusUpdate={s => { setBuffering(!!s.isBuffering); if (s.durationMillis > 0) setVidProgress(s.positionMillis / s.durationMillis); if (s.didJustFinish) {
+              setShowWatermark(true);
+              setTimeout(async () => {
+                setShowWatermark(false);
+                try {
+                  if (videoRef.current) {
+                    await videoRef.current.setPositionAsync(0);
+                    await videoRef.current.playAsync();
+                  }
+                } catch {}
+              }, 2500);
+            } }}
           onError={() => { setLoadError(true); setBuffering(false); }}
         />
       ) : (
